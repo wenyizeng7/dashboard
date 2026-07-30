@@ -1078,11 +1078,12 @@ const app = {
     var today=this.todayStr();
     if(!this.state.diet[today]) { var d={}; MEALS.forEach(function(m){d[m.key]=[];}); this.state.diet[today]=d; }
     if(!this.state.diet[today][this.currentMeal]) this.state.diet[today][this.currentMeal]=[];
-    var newItem={name:name,gram:gram,cal:cal};
+    var newItem={id:'d'+Date.now()+'-'+Math.floor(Math.random()*1000),name:name,gram:gram,cal:cal};
     if(this.dietImageData) newItem.img=this.dietImageData;
     this.state.diet[today][this.currentMeal].push(newItem);
     this.saveState(); this.closeDietModal(); this.renderDiet();
-    this.toast('✅ 已添加 '+name);
+    this.pushDietItemToReviews(today,this.currentMeal,newItem);
+    this.toast('✅ 已添加 '+name+'（已同步到小众点评）');
   },
 
   deleteDietItem(meal,idx){
@@ -1091,6 +1092,57 @@ const app = {
       this.state.diet[today][meal].splice(idx,1);
       this.saveState(); this.renderDiet();
     }
+  },
+
+  /* ===== Push diet item into 小众点评 (reviews) as a pending review =====
+     Avoids double entry: a logged food appears in 小众点评 ready to be rated later.
+     Dedup by name so the same dish maps to one review you rate once. */
+  mapMealToCategoryId(mealKey,name,categories){
+    var prefer={breakfast:'meal',lunch:'meal',dinner:'meal',snack:'snack',drink:(name.indexOf('咖啡')>=0?'coffee':'milktea')};
+    var pid=prefer[mealKey]||'';
+    if(pid&&categories.some(function(c){return c.id===pid;})) return pid;
+    var kw={meal:'正餐',snack:'零食',coffee:'咖啡',milktea:'奶茶'}[pid]||'';
+    if(kw){ var found=categories.find(function(c){return (c.name||'').indexOf(kw)>=0;}); if(found) return found.id; }
+    var mealLabel={breakfast:'早餐',lunch:'午餐',dinner:'晚餐',snack:'加餐',drink:'奶茶咖啡'}[mealKey];
+    if(mealLabel){ var f2=categories.find(function(c){return (c.name||'').indexOf(mealLabel)>=0;}); if(f2) return f2.id; }
+    return '';
+  },
+
+  pushDietItemToReviews(date,mealKey,item){
+    try{
+      var rs=JSON.parse(localStorage.getItem('reviews_pro_state')||'{}');
+      if(!rs.reviews) rs.reviews=[];
+      if(!rs.categories) rs.categories=[];
+      var name=(item.name||'').trim();
+      if(!name) return;
+      var catId=this.mapMealToCategoryId(mealKey,name,rs.categories);
+      var nameKey=name.toLowerCase();
+      var existing=rs.reviews.find(function(r){return (r.name||'').trim().toLowerCase()===nameKey;});
+      if(existing){
+        if(!existing.photo&&item.img) existing.photo=item.img;
+        if(!existing.date) existing.date=date;
+        if(!existing.categoryId) existing.categoryId=catId;
+        if(!existing._src){ existing._src='health'; existing._srcId=item.id; existing._srcMeal=mealKey; }
+      } else {
+        rs.reviews.unshift({
+          id:'r'+Date.now()+'-'+Math.floor(Math.random()*1000),
+          name:name,
+          categoryId:catId,
+          place:'',
+          rating:0,
+          price:'',
+          tags:[],
+          photo:item.img||null,
+          text:'',
+          date:date,
+          _src:'health',
+          _srcId:item.id,
+          _srcMeal:mealKey
+        });
+      }
+      localStorage.setItem('reviews_pro_state',JSON.stringify(rs));
+      if(window.parent&&window.parent!==window) window.parent.postMessage({type:'dashboard-refresh'},'*');
+    }catch(e){ console.error('pushDietItemToReviews failed',e); }
   },
 
   /* ===== QUICK PICK MANAGEMENT ===== */

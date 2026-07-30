@@ -36,8 +36,64 @@
     for (var i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
     return s;
   }
-  function getCode() { var c = localStorage.getItem(CODE_KEY); if (!c) { c = genCode(8); localStorage.setItem(CODE_KEY, c); } return c; }
-  function setCode(c) { localStorage.setItem(CODE_KEY, c); }
+  // 由 Supabase 配置确定性派生房间码：同一项目(同配置)的所有设备自动落入同一房间，
+  // 彻底消除"各设备各自生成随机码 → 不同房间 → 只能同步一次 / 手机不能同步"的顽疾。
+  function deterministicCode() {
+    var cfg = loadConfig();
+    var seed = '';
+    if (cfg.url) { var m = String(cfg.url).match(/https?:\/\/([^.]+)\.supabase\.co/); seed = m ? m[1] : String(cfg.url); }
+    if (!seed && cfg.anonKey) seed = cfg.anonKey;
+    if (!seed) seed = 'default';
+    var h = 2166136261 >>> 0; // FNV-1a
+    for (var i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    var out = '', x = h;
+    for (var j = 0; j < 8; j++) { out += chars[x % chars.length]; x = (Math.imul(x, 31) + 7) >>> 0; }
+    return 'PB' + out;
+  }
+  // 仅在用户手动「加入其他房间 / 重新生成同步码」时打 manual 标记，避免被确定性码覆盖
+  function getCode() {
+    if (localStorage.getItem('pb_sync_manual')) {
+      var mc = localStorage.getItem(CODE_KEY);
+      if (mc) return mc;
+    }
+    var d = deterministicCode();
+    localStorage.setItem(CODE_KEY, d);
+    return d;
+  }
+  function setCode(c, manual) {
+    localStorage.setItem(CODE_KEY, c);
+    if (manual) localStorage.setItem('pb_sync_manual', '1');
+    else localStorage.removeItem('pb_sync_manual');
+  }
+
+  /* ---------- 房间迁移：把旧房间(随机码)的数据并入确定性房间，保留历史数据 ---------- */
+  async function migrateToRoom(targetCode) {
+    try {
+      if (!sb) return;
+      // 目标房间已有数据则无需迁移
+      var t = await sb.from('dashboard_sync').select('data_key').eq('sync_code', targetCode).limit(1);
+      if (t.data && t.data.length) return;
+      // 找最近的非目标房间
+      var rooms = await sb.from('dashboard_sync').select('sync_code,updated_at').order('updated_at', { ascending: false }).limit(100);
+      if (!rooms.data || !rooms.data.length) return;
+      var srcCode = null;
+      for (var i = 0; i < rooms.data.length; i++) {
+        if (rooms.data[i].sync_code !== targetCode) { srcCode = rooms.data[i].sync_code; break; }
+      }
+      if (!srcCode) return;
+      var rows = await sb.from('dashboard_sync').select('data_key,data_value,updated_at').eq('sync_code', srcCode);
+      if (!rows.data || !rows.data.length) return;
+      var tasks = rows.data.map(function (r) {
+        return sb.from('dashboard_sync').upsert(
+          { sync_code: targetCode, data_key: r.data_key, data_value: r.data_value, updated_at: r.updated_at },
+          { onConflict: 'sync_code,data_key' }
+        );
+      });
+      await Promise.all(tasks);
+      console.log('[Sync] 已迁移房间 ' + srcCode + ' → ' + targetCode + ' (' + rows.data.length + ' 行)');
+    } catch (e) { console.warn('[Sync] 房间迁移失败(可忽略，后台会重试):', e.message || e); }
+  }
 
   function getMeta() { try { return JSON.parse(localStorage.getItem(META_KEY) || '{}'); } catch (e) { return {}; } }
   function setMeta(m) { localStorage.setItem(META_KEY, JSON.stringify(m)); }
@@ -299,25 +355,27 @@
     firstPullDone = false;
     try {
       await ensureClient();
-      // 自动发现已有房间：同一 Supabase 项目下，新设备（本地无同步码）自动加入
-      // 最近使用的房间，避免各设备各自生成随机码 → 不在同一房间 → 无法同步。
-      if (!localStorage.getItem(CODE_KEY)) {
-        try {
-          var exist = await sb.from('dashboard_sync').select('sync_code,updated_at').order('updated_at', { ascending: false }).limit(50);
-          if (exist && exist.data && exist.data.length) {
-            var firstCode = exist.data[0].sync_code;
-            if (firstCode) { setCode(firstCode); }
-          }
-        } catch (e) {}
-        if (!localStorage.getItem(CODE_KEY)) setCode(genCode(8));
+      // 房间码确定性收敛：同一 Supabase 配置 → 同一确定性房间码(PBxxxxxx)，
+      // 旧房间(随机码)数据自动迁移过来，从根本上消除分房导致的"只能同步一次"。
+      var targetCode = deterministicCode();
+      var manualFlag = localStorage.getItem('pb_sync_manual');
+      var currentCode = localStorage.getItem(CODE_KEY);
+      if (!manualFlag && currentCode !== targetCode) {
+        await migrateToRoom(targetCode);
+        setCode(targetCode, false);
       }
-      if (pullOnly) {
-        // 加入新房间：只拉取云端数据，不推送本地
-        await pullAll();
-      } else {
-        // 正常启动：先推送本地数据，再拉取云端
-        await forcePushAll();   // 1. 先把本地两个模块的数据推到云端
-        await pullAll();        // 2. 再拉取云端最新数据
+      // 初始推送/拉取包在独立 try 中：即使瞬时失败，下方的定时轮询仍会持续重试恢复
+      try {
+        if (pullOnly) {
+          // 加入新房间：只拉取云端数据，不推送本地
+          await pullAll();
+        } else {
+          // 正常启动：先推送本地数据，再拉取云端
+          await forcePushAll();   // 1. 先把本地两个模块的数据推到云端
+          await pullAll();        // 2. 再拉取云端最新数据
+        }
+      } catch (e) {
+        console.warn('[Sync] 初始推送/拉取失败，后台轮询将持续重试:', e.message || e);
       }
       firstPullDone = true;
       notifyIframes();
@@ -454,7 +512,7 @@
     +       '<button onclick="SyncEngine.copyCode()" class="w-9 h-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 transition" title="复制">📋</button>'
     +     '</div>'
     +     '<div class="mt-3 bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 leading-relaxed text-left">'
-    +       '<b>在新设备上加入：</b>在另一台设备打开「个人看板」→ 同步设置 → 输入这个同步码 → 加入。两台设备的数据就会自动保持一致。'
+    +       '<b>多设备自动同步：</b>只要不同设备填的是<b>同一个 Supabase 配置</b>，就会自动进入同一个房间，无需手动输入同步码。本码由配置自动生成（已迁移旧房间数据）。'
     +     '</div>'
     +   '</div>'
     +   dataStatusBlock
@@ -514,7 +572,7 @@
     if (code.length < 6) { alert('同步码至少 6 位'); return; }
     if (code === getCode()) { alert('这就是当前设备的同步码'); return; }
     if (!confirm('加入新房间会下载该房间的数据覆盖当前本地数据，确定吗？\n（建议先在原设备备份）')) return;
-    setCode(code);
+    setCode(code, true);
     setMeta({});
     lastSnapshot = {};
     sb = null; realtimeCh = null; started = false;
@@ -526,7 +584,7 @@
   function resetCode() {
     if (!confirm('重新生成同步码将创建一个全新的空房间，当前房间的数据仍保留在云端。确定吗？')) return;
     var newCode = genCode(8);
-    setCode(newCode);
+    setCode(newCode, true);
     setMeta({});
     lastSnapshot = {};
     sb = null; realtimeCh = null; started = false;

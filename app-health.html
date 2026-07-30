@@ -1091,6 +1091,7 @@ const app = {
     if(this.state.diet[today]&&this.state.diet[today][meal]){
       this.state.diet[today][meal].splice(idx,1);
       this.saveState(); this.renderDiet();
+      this.syncReviewsAfterDietDelete();
     }
   },
 
@@ -1143,6 +1144,38 @@ const app = {
       localStorage.setItem('reviews_pro_state',JSON.stringify(rs));
       if(window.parent&&window.parent!==window) window.parent.postMessage({type:'dashboard-refresh'},'*');
     }catch(e){ console.error('pushDietItemToReviews failed',e); }
+  },
+
+  /* ===== When a diet item is deleted, reconcile the linked 小众点评 pending reviews.
+     A food name maps to ONE pending review (dedup). If that name no longer exists
+     anywhere in the diet records, remove the still-pending (unrated) health review.
+     Rated/edited health reviews are kept so we never destroy the user's own review. */
+  syncReviewsAfterDietDelete(){
+    try{
+      var rs=JSON.parse(localStorage.getItem('reviews_pro_state')||'{}');
+      if(!rs.reviews||!rs.reviews.length) return;
+      var names={};
+      var diet=this.state.diet||{};
+      Object.keys(diet).forEach(function(day){
+        var d=diet[day]||{};
+        Object.keys(d).forEach(function(meal){
+          (d[meal]||[]).forEach(function(it){ if(it&&it.name){ names[(it.name||'').trim().toLowerCase()]=true; } });
+        });
+      });
+      var before=rs.reviews.length;
+      rs.reviews=rs.reviews.filter(function(r){
+        if(r._src==='health' && !r.rating){
+          var k=(r.name||'').trim().toLowerCase();
+          return names[k]===true; // keep only if name still exists in diet
+        }
+        return true; // keep manual reviews and rated health reviews
+      });
+      if(rs.reviews.length!==before){
+        localStorage.setItem('reviews_pro_state',JSON.stringify(rs));
+        if(window.parent&&window.parent!==window) window.parent.postMessage({type:'dashboard-refresh'},'*');
+        this.toast('🗑️ 已同步删除小众点评待点评');
+      }
+    }catch(e){ console.error('syncReviewsAfterDietDelete failed',e); }
   },
 
   /* ===== QUICK PICK MANAGEMENT ===== */

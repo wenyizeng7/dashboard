@@ -1,0 +1,2363 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>闪念日记 - Day One Premium</title>
+    <!-- Tailwind CSS (pre-compiled) -->
+    <link rel="stylesheet" href="tailwind.css">
+    <!-- Lucide 图标 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Leaflet 地图 CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Style for photo background inside calendar cell */
+        .calendar-photo-cell {
+            background-size: cover;
+            background-position: center;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+        }
+
+        .custom-photo-pin {
+            background: none !important;
+            border: none !important;
+        }
+        
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="month"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            opacity: 0.6;
+            transition: 0.2s;
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator:hover,
+        input[type="month"]::-webkit-calendar-picker-indicator:hover {
+            opacity: 1;
+        }
+
+        :root {
+            --dayone-blue: #007aff;
+            --dayone-hover: #0062cc;
+            --dayone-light-bg: #f2f4f7;
+            --dayone-dark-bg: #090b0f;
+            --dayone-dark-card: #151922;
+            --dayone-dark-border: #222834;
+        }
+        .bg-dayone-blue { background-color: var(--dayone-blue); }
+        .text-dayone-blue { color: var(--dayone-blue); }
+        .hover\:bg-dayone-hover:hover { background-color: var(--dayone-hover); }
+        .dark .dark\:bg-dayone-darkBg { background-color: var(--dayone-dark-bg); }
+        .dark .dark\:bg-dayone-darkCard { background-color: var(--dayone-dark-card); }
+        .dark .dark\:border-dayone-darkBorder { border-color: var(--dayone-dark-border); }
+        
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .leaflet-container { z-index: 10 !important; font-family: inherit; }
+        .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        
+        #main-sidebar { transition: width 0.3s ease; }
+        #main-sidebar.collapsed { width: 5.5rem; }
+        #main-sidebar.collapsed .sidebar-text { display: none; }
+        #main-sidebar.collapsed .sidebar-top-bar { flex-direction: column; justify-content: center; padding-left: 0.5rem; padding-right: 0.5rem; gap: 1rem; }
+        #main-sidebar.collapsed .nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
+        #main-sidebar.collapsed .streak-panel { display: none; }
+        #main-sidebar.collapsed #sidebar-toggle-btn { transform: rotate(180deg); }
+    </style>
+</head>
+<body class="bg-[#f8fafc] dark:bg-dayone-darkBg text-slate-800 dark:text-slate-100 transition-colors duration-200 overflow-hidden">
+
+    <div class="flex h-screen w-screen overflow-hidden">
+        
+        <!-- 左侧主导航 (Desktop) -->
+        <aside id="main-sidebar" class="hidden md:flex flex-col w-64 bg-white dark:bg-dayone-darkCard border-r border-slate-200 dark:border-dayone-darkBorder shrink-0 h-full z-20 relative">
+            <button onclick="toggleSidebar()" id="sidebar-toggle-btn" class="absolute -right-3 top-8 w-6 h-6 bg-white dark:bg-dayone-darkCard border border-slate-200 dark:border-dayone-darkBorder rounded-full flex items-center justify-center text-slate-400 hover:text-dayone-blue z-50 shadow-sm transition-transform cursor-pointer" title="收起/展开导航">
+                <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+            </button>
+
+            <div class="sidebar-top-bar p-6 flex items-center justify-between border-b border-slate-100 dark:border-dayone-darkBorder">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 bg-dayone-blue rounded-xl flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
+                        <i data-lucide="book-open" class="w-5 h-5"></i>
+                    </div>
+                    <span class="sidebar-text font-bold text-lg tracking-tight bg-gradient-to-r from-dayone-blue to-blue-600 bg-clip-text text-transparent whitespace-nowrap">闪念日记</span>
+                </div>
+                <button onclick="toggleTheme()" class="shrink-0 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                    <i id="theme-icon" data-lucide="moon" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <nav class="flex-1 p-4 space-y-1 overflow-y-auto hide-scrollbar">
+                <button onclick="switchTab('journal')" id="nav-journal" class="nav-item w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition text-dayone-blue bg-blue-50 dark:bg-blue-950/40">
+                    <i data-lucide="book-marked" class="w-5 h-5 shrink-0"></i>
+                    <span class="sidebar-text whitespace-nowrap">我的日记书</span>
+                </button>
+                <button onclick="switchTab('tags')" id="nav-tags" class="nav-item w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition">
+                    <i data-lucide="tags" class="w-5 h-5 shrink-0"></i>
+                    <span class="sidebar-text whitespace-nowrap">分类与标签看板</span>
+                </button>
+                <button onclick="switchTab('insights')" id="nav-insights" class="nav-item w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition">
+                    <i data-lucide="line-chart" class="w-5 h-5 shrink-0"></i>
+                    <span class="sidebar-text whitespace-nowrap">回忆数据分析</span>
+                </button>
+                <button onclick="switchTab('settings')" id="nav-settings" class="nav-item w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition">
+                    <i data-lucide="shield-check" class="w-5 h-5 shrink-0"></i>
+                    <span class="sidebar-text whitespace-nowrap">备份与安全</span>
+                </button>
+            </nav>
+
+            <div class="streak-panel p-4 border-t border-slate-100 dark:border-dayone-darkBorder m-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl">
+                <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                    <span>连续记录天数</span>
+                    <span id="streak-num" class="font-bold text-dayone-blue">0天</span>
+                </div>
+                <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                    <div id="streak-progress" class="bg-dayone-blue h-full" style="width: 0%"></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="flex-1 flex flex-col h-full overflow-hidden relative">
+            
+            <div class="md:hidden flex items-center justify-between p-4 bg-white dark:bg-dayone-darkCard border-b border-slate-200 dark:border-dayone-darkBorder z-20"></div>
+
+            <!-- TAB 1: 日记主功能区 -->
+            <div id="page-journal" class="tab-content flex flex-1 h-full overflow-hidden fade-in relative z-10">
+                <!-- 左侧: 列表/日历/地图/那年 -->
+                <section class="w-full md:w-[400px] border-r border-slate-200 dark:border-dayone-darkBorder bg-white dark:bg-dayone-darkCard flex flex-col h-full shrink-0 z-20">
+                    <div class="p-2.5 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-dayone-darkBorder flex gap-1 overflow-x-auto hide-scrollbar shrink-0">
+                        <button onclick="switchSubView('list')" id="subview-btn-list" class="flex-1 py-1.5 px-1 text-[11px] font-bold rounded-lg transition text-center flex items-center justify-center gap-1 bg-white dark:bg-dayone-darkCard shadow-sm text-dayone-blue shrink-0">
+                            <i data-lucide="list" class="w-3.5 h-3.5"></i> 列表
+                        </button>
+                        <button onclick="switchSubView('calendar')" id="subview-btn-calendar" class="flex-1 py-1.5 px-1 text-[11px] font-bold rounded-lg transition text-center flex items-center justify-center gap-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0">
+                            <i data-lucide="calendar" class="w-3.5 h-3.5"></i> 日历
+                        </button>
+                        <button onclick="switchSubView('map')" id="subview-btn-map" class="flex-1 py-1.5 px-1 text-[11px] font-bold rounded-lg transition text-center flex items-center justify-center gap-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0">
+                            <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> 地图
+                        </button>
+                        <button onclick="switchSubView('onthisday')" id="subview-btn-onthisday" class="flex-1 py-1.5 px-1 text-[11px] font-bold rounded-lg transition text-center flex items-center justify-center gap-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0">
+                            <i data-lucide="hourglass" class="w-3.5 h-3.5"></i> 那年
+                        </button>
+                    </div>
+
+                    <div class="p-4 border-b border-slate-100 dark:border-dayone-darkBorder flex items-center gap-2 shrink-0">
+                        <div class="relative flex-1">
+                            <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-slate-400"></i>
+                            <input type="text" id="search-input" oninput="filterDiaries()" placeholder="检索回忆、标签..." class="w-full pl-9 pr-4 py-2 text-sm bg-slate-100 dark:bg-slate-800 border-none rounded-xl focus:ring-1 focus:ring-dayone-blue outline-none transition text-slate-700 dark:text-slate-200">
+                        </div>
+                        <button onclick="createNewEntry()" class="w-9 h-9 bg-dayone-blue text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/10 hover:bg-dayone-hover transition shrink-0" title="新建今天日记">
+                            <i data-lucide="plus" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex-1 relative overflow-hidden">
+                        <div id="subpanel-list" class="absolute inset-0 flex flex-col fade-in bg-white dark:bg-dayone-darkCard z-10">
+                            <div class="flex items-center justify-between px-4 py-2 bg-white/90 dark:bg-dayone-darkCard/90 backdrop-blur border-b border-slate-50 dark:border-slate-800 shrink-0 z-20 gap-2">
+                                <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex-1">
+                                    <button onclick="setListTimeFilter('all')" id="filter-btn-all" class="flex-1 py-1 text-xs font-bold rounded-md bg-white dark:bg-slate-700 shadow-sm text-slate-800 dark:text-white transition">全部</button>
+                                    <button onclick="setListTimeFilter('week')" id="filter-btn-week" class="flex-1 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition">本周</button>
+                                    <button onclick="setListTimeFilter('month')" id="filter-btn-month" class="flex-1 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition">本月</button>
+                                </div>
+                                <div class="relative shrink-0 flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1 px-2 border border-slate-200 dark:border-slate-700 hover:border-dayone-blue transition">
+                                    <i data-lucide="calendar-days" class="w-3.5 h-3.5 text-slate-400 absolute left-2 pointer-events-none"></i>
+                                    <input type="date" id="list-date-picker" onchange="setListSpecificDate(this.value)" title="选择特定日期" class="pl-5 text-xs bg-transparent outline-none text-slate-600 dark:text-slate-300 w-[110px] cursor-pointer">
+                                </div>
+                            </div>
+                            <div id="list-items-container" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
+                        </div>
+                        
+                        <div id="subpanel-calendar" class="absolute inset-0 flex flex-col hidden fade-in bg-white dark:bg-dayone-darkCard z-10">
+                            <div class="px-4 py-2 border-b border-slate-50 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 shrink-0 flex gap-2 overflow-x-auto hide-scrollbar">
+                                <button onclick="setCalMode('photo')" id="cal-mode-photo" class="px-3 py-1 text-[11px] font-bold rounded-full bg-dayone-blue text-white shadow-sm transition whitespace-nowrap">📸 照片墙</button>
+                                <button onclick="setCalMode('mood')" id="cal-mode-mood" class="px-3 py-1 text-[11px] font-bold rounded-full bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 transition whitespace-nowrap">😃 心情</button>
+                                <button onclick="setCalMode('weather')" id="cal-mode-weather" class="px-3 py-1 text-[11px] font-bold rounded-full bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 transition whitespace-nowrap">☀️ 天气</button>
+                                <button onclick="setCalMode('activity')" id="cal-mode-activity" class="px-3 py-1 text-[11px] font-bold rounded-full bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 transition whitespace-nowrap">💻 状态</button>
+                                <button onclick="setCalMode('city')" id="cal-mode-city" class="px-3 py-1 text-[11px] font-bold rounded-full bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 transition whitespace-nowrap">📍 城市</button>
+                            </div>
+                            <div id="calendar-scroll-area" class="flex-1 overflow-y-auto p-4 space-y-6"></div>
+                        </div>
+                        
+                        <div id="subpanel-map" class="absolute inset-0 hidden fade-in bg-slate-100 dark:bg-slate-800 z-10">
+                            <div class="absolute top-4 right-4 z-[500] bg-white/95 dark:bg-slate-800/95 backdrop-blur p-1 rounded-xl shadow-lg border border-slate-100 dark:border-slate-700 flex gap-1">
+                                <button onclick="setMapMode('pin')" id="map-mode-pin" class="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-blue-50 dark:bg-blue-900/40 text-dayone-blue transition flex items-center gap-1">
+                                    <i data-lucide="map-pin" class="w-3 h-3"></i> 指针
+                                </button>
+                                <button onclick="setMapMode('photo')" id="map-mode-photo" class="px-3 py-1.5 text-[11px] font-bold rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center gap-1">
+                                    <i data-lucide="image" class="w-3 h-3"></i> 照片日历墙
+                                </button>
+                            </div>
+                            <div id="leaflet-map" class="w-full h-full"></div>
+                        </div>
+
+                        <div id="subpanel-onthisday" class="p-4 space-y-4 absolute inset-0 overflow-y-auto hidden fade-in bg-white dark:bg-dayone-darkCard z-10"></div>
+                    </div>
+                </section>
+
+                <!-- 右侧: 沉浸式编辑器 -->
+                <section id="editor-pane" class="hidden md:flex flex-1 flex-col bg-slate-50 dark:bg-dayone-darkBg h-full overflow-hidden z-30 absolute md:relative inset-0 w-full">
+                    <div class="px-6 py-4 bg-white dark:bg-dayone-darkCard border-b border-slate-200 dark:border-dayone-darkBorder flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <button onclick="closeEditorOnMobile()" class="md:hidden p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                            </button>
+                            <span id="editor-date-badge" class="text-sm font-semibold text-slate-500 dark:text-slate-400">选择或开始撰写日记...</span>
+                            <div class="flex items-center gap-1 ml-1 px-1.5 py-0.5 rounded-lg border border-slate-200 dark:border-dayone-darkBorder hover:border-dayone-blue dark:hover:border-dayone-blue/50 transition group" title="选择日记日期">
+                                <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400 group-hover:text-dayone-blue transition"></i>
+                                <input type="date" id="editor-date-picker" onchange="onEditorDateChange(this.value)" class="text-xs text-slate-500 dark:text-slate-400 bg-transparent outline-none cursor-pointer w-[115px]">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="triggerPhotoUpload()" class="p-2.5 text-slate-500 hover:text-dayone-blue hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-xl transition" title="附带精美照片">
+                                <i data-lucide="image" class="w-5 h-5"></i>
+                            </button>
+                            <button onclick="deleteCurrentEntry()" id="delete-btn" class="hidden p-2.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition" title="永久销毁此记录">
+                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                            </button>
+                            <button onclick="saveCurrentEntry()" class="px-5 py-2 bg-dayone-blue text-white text-sm font-semibold rounded-xl hover:bg-dayone-hover shadow-md shadow-blue-500/10 transition">
+                                优雅保存
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto p-6 space-y-6 max-w-3xl mx-auto w-full">
+                        <div id="cover-preview-container" class="hidden relative rounded-2xl overflow-hidden aspect-[21/9] bg-slate-200 dark:bg-slate-800 shadow-inner group">
+                            <img id="cover-img" class="w-full h-full object-cover" src="">
+                            <button onclick="removeCoverPhoto()" class="absolute top-3 right-3 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transition opacity-0 group-hover:opacity-100">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+
+                        <div id="no-photo-placeholder" class="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 px-5 py-4 flex items-center gap-3 text-slate-400">
+                            <div class="w-10 h-10 rounded-xl bg-white dark:bg-slate-700 flex items-center justify-center shadow-sm"><i data-lucide="pen-line" class="w-5 h-5 text-dayone-blue"></i></div>
+                            <div><div class="text-sm font-semibold text-slate-500 dark:text-slate-300">今天想记录什么？</div><div class="text-xs mt-0.5">可直接开始写，也可以点击右上角图片添加照片</div></div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div class="bg-white dark:bg-dayone-darkCard p-3 rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm">
+                                <label class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase mb-1.5">当前心情</label>
+                                <select id="meta-mood" class="w-full bg-transparent border-none text-sm font-semibold outline-none text-slate-700 dark:text-slate-300">
+                                    <option value="😃 极其愉快">😃 极其愉快</option>
+                                    <option value="🙂 平静充实">🙂 平静充实</option>
+                                    <option value="😐 波澜不惊">😐 波澜不惊</option>
+                                    <option value="😞 略带伤感">😞 略带伤感</option>
+                                    <option value="😡 心烦意乱">😡 心烦意乱</option>
+                                    <option value="🧘 处于冥想">🧘 处于冥想</option>
+                                </select>
+                            </div>
+                            <div class="bg-white dark:bg-dayone-darkCard p-3 rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm">
+                                <label class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase mb-1.5">天气状况</label>
+                                <select id="meta-weather" class="w-full bg-transparent border-none text-sm font-semibold outline-none text-slate-700 dark:text-slate-300">
+                                    <option value="☀️ 晴空万里">☀️ 晴空万里</option>
+                                    <option value="☁️ 多云沉静">☁️ 多云沉静</option>
+                                    <option value="🌧️ 细雨连绵">🌧️ 细雨连绵</option>
+                                    <option value="❄️ 皑皑白雪">❄️ 皑皑白雪</option>
+                                    <option value="💨 微风拂面">💨 微风拂面</option>
+                                </select>
+                            </div>
+                            <div class="bg-white dark:bg-dayone-darkCard p-3 rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm">
+                                <label class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase mb-1.5">活动状态</label>
+                                <select id="meta-activity" class="w-full bg-transparent border-none text-sm font-semibold outline-none text-slate-700 dark:text-slate-300">
+                                    <option value="💻 沉浸工作">💻 沉浸工作</option>
+                                    <option value="💡 捕捉灵感">💡 捕捉灵感</option>
+                                    <option value="☕ 慢享生活">☕ 慢享生活</option>
+                                    <option value="🎬 观影读书">🎬 观影读书</option>
+                                    <option value="🛌 彻底放松">🛌 彻底放松</option>
+                                    <option value="✈️ 旅行出差">✈️ 旅行出差</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="bg-white dark:bg-dayone-darkCard p-4 rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm flex flex-col justify-center">
+                                <label class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase mb-2">分类标签 (逗号分隔)</label>
+                                <input type="text" id="meta-tags" placeholder="生活, 工作, 脑洞..." class="w-full bg-transparent text-sm font-semibold outline-none border-b border-slate-100 dark:border-dayone-darkBorder py-1 focus:border-dayone-blue transition text-slate-700 dark:text-slate-300">
+                            </div>
+                            
+                            <div class="bg-white dark:bg-dayone-darkCard p-4 rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm flex flex-col justify-center">
+                                <div class="flex justify-between items-center mb-2">
+                                    <label class="block text-[11px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase">地理位置</label>
+                                    <button onclick="fetchLocation()" class="text-[11px] font-bold text-dayone-blue flex items-center gap-1 hover:opacity-80 transition bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded">
+                                        <i data-lucide="navigation" class="w-3 h-3"></i> 自动定位
+                                    </button>
+                                </div>
+                                <input type="text" id="meta-location" onblur="geocodeManualLocation()" placeholder="可手动填写如: 北京 朝阳" class="w-full bg-transparent text-sm font-semibold outline-none border-b border-slate-100 dark:border-dayone-darkBorder py-1 focus:border-dayone-blue transition text-slate-700 dark:text-slate-300">
+                                <input type="hidden" id="meta-lat">
+                                <input type="hidden" id="meta-lng">
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <input type="text" id="diary-title" placeholder="给今天起个优雅的标题..." class="w-full bg-transparent border-none text-2xl font-bold tracking-tight text-slate-800 dark:text-white outline-none placeholder:text-slate-300 dark:placeholder:text-slate-700">
+                            
+                            <div class="flex flex-wrap gap-2 py-1 items-center">
+                                <span class="text-xs font-semibold text-slate-400">写作骨架:</span>
+                                <button onclick="injectTemplate('morning')" class="text-xs px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-blue-50 hover:text-dayone-blue dark:hover:bg-blue-950/20 text-slate-600 dark:text-slate-300 rounded-lg shadow-sm transition border border-slate-100 dark:border-dayone-darkBorder">🌅 晨间</button>
+                                <button onclick="injectTemplate('gratitude')" class="text-xs px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-blue-50 hover:text-dayone-blue dark:hover:bg-blue-950/20 text-slate-600 dark:text-slate-300 rounded-lg shadow-sm transition border border-slate-100 dark:border-dayone-darkBorder">✨ 感恩</button>
+                                <button onclick="injectTemplate('retro')" class="text-xs px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-blue-50 hover:text-dayone-blue dark:hover:bg-blue-950/20 text-slate-600 dark:text-slate-300 rounded-lg shadow-sm transition border border-slate-100 dark:border-dayone-darkBorder">📊 复盘</button>
+                                <button onclick="injectTemplate('inspiration')" class="text-xs px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-blue-50 hover:text-dayone-blue dark:hover:bg-blue-950/20 text-slate-600 dark:text-slate-300 rounded-lg shadow-sm transition border border-slate-100 dark:border-dayone-darkBorder">🎨 脑洞</button>
+                                <button onclick="injectTemplate('media')" class="text-xs px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-blue-50 hover:text-dayone-blue dark:hover:bg-blue-950/20 text-slate-600 dark:text-slate-300 rounded-lg shadow-sm transition border border-slate-100 dark:border-dayone-darkBorder">🍿 观影</button>
+                                <span class="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-0.5"></span>
+                                <button onclick="importTodayTasks()" id="import-tasks-btn" class="text-xs px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 rounded-lg shadow-sm transition border border-indigo-100 dark:border-indigo-800/50 font-semibold flex items-center gap-1">📋 导入当日任务</button>
+                                <button onclick="importTodayTrashThoughts()" id="import-trash-btn" class="text-xs px-2.5 py-1 bg-stone-100 dark:bg-stone-800/50 hover:bg-stone-200 dark:hover:bg-stone-700/50 text-stone-600 dark:text-stone-300 rounded-lg shadow-sm transition border border-stone-200 dark:border-stone-700 font-semibold flex items-center gap-1">🗑️ 导入当天碎碎念</button>
+                            </div>
+
+                            <textarea id="diary-content" placeholder="此刻在想些什么？用文字捕捉流动的时光..." class="w-full min-h-[350px] bg-transparent border-none text-base leading-relaxed text-slate-700 dark:text-slate-200 outline-none resize-none"></textarea>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- TAB 2: 标签看板区 -->
+            <div id="page-tags" class="tab-content hidden flex-1 overflow-y-auto bg-slate-50 dark:bg-dayone-darkBg fade-in">
+                <div class="px-6 py-8 bg-white dark:bg-dayone-darkCard border-b border-slate-200 dark:border-dayone-darkBorder">
+                    <h2 class="text-2xl font-bold tracking-tight flex items-center gap-2">
+                        <i data-lucide="tags" class="w-6 h-6 text-dayone-blue"></i>
+                        分类与标签看板
+                    </h2>
+                    <p class="text-sm text-slate-400 mt-2">在这里审视每个生活维度的积累，探索专属特定主题的数据脉络。</p>
+                </div>
+                
+                <div class="p-6 max-w-[1400px] mx-auto w-full grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    <!-- 左侧：检索列表 + 移动过来的日历与地点统计 -->
+                    <div class="lg:col-span-1 space-y-4 relative">
+                        <div class="bg-white dark:bg-dayone-darkCard rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm overflow-hidden">
+                            <div class="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-150 dark:border-dayone-darkBorder flex justify-between items-center">
+                                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest">分类检索</h3>
+                            </div>
+                            <div id="tags-cloud-container" class="p-3 flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto hide-scrollbar">
+                                <!-- 动态加载 -->
+                            </div>
+                        </div>
+
+                        <!-- 🌟 紧凑的微型时光仪 (支持侧边栏内的自适应) -->
+                        <div id="tag-mini-calendar-wrapper" class="hidden fade-in bg-white dark:bg-dayone-darkCard rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm overflow-hidden sticky top-6">
+                            <!-- 动态加载内容 -->
+                        </div>
+                    </div>
+
+                    <!-- 右侧：全局过滤 + 统计卡片 + 日记流 -->
+                    <div class="lg:col-span-3 flex flex-col h-full space-y-6">
+                        <!-- 头部与高级时间筛选引擎 (Tags) -->
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-dayone-darkCard p-5 rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/40 flex items-center justify-center text-dayone-blue">
+                                    <i data-lucide="hash" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <h3 id="current-tag-title" class="text-xl font-bold text-slate-700 dark:text-slate-100 leading-tight">选择标签...</h3>
+                                    <p class="text-xs text-slate-400 mt-0.5">此标签下的全维度数据洞察</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex flex-wrap items-center gap-2 bg-slate-50 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div class="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
+                                    <button onclick="setTagFilter('all')" id="tag-flt-all" class="px-2.5 py-1 text-xs font-bold rounded-md bg-white dark:bg-slate-700 shadow-sm text-slate-800 dark:text-white transition">全部</button>
+                                    <button onclick="setTagFilter('month')" id="tag-flt-month" class="px-2.5 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition">本月</button>
+                                    <button onclick="setTagFilter('quarter')" id="tag-flt-quarter" class="px-2.5 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition">本季</button>
+                                    <button onclick="setTagFilter('year')" id="tag-flt-year" class="px-2.5 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition">今年</button>
+                                </div>
+                                <div class="flex items-center gap-1 border-l border-slate-200 dark:border-slate-600 pl-2">
+                                    <select id="tag-flt-year-sel" onchange="setTagFilter('custom')" class="text-xs bg-transparent font-medium text-slate-600 dark:text-slate-300 outline-none cursor-pointer"></select>
+                                    <select id="tag-flt-range-sel" onchange="setTagFilter('custom')" class="text-xs bg-transparent font-medium text-slate-600 dark:text-slate-300 outline-none cursor-pointer">
+                                        <option value="year">全年</option>
+                                        <option value="q1">第一季度</option><option value="q2">第二季度</option><option value="q3">第三季度</option><option value="q4">第四季度</option>
+                                        <option value="m1">1月</option><option value="m2">2月</option><option value="m3">3月</option><option value="m4">4月</option>
+                                        <option value="m5">5月</option><option value="m6">6月</option><option value="m7">7月</option><option value="m8">8月</option>
+                                        <option value="m9">9月</option><option value="m10">10月</option><option value="m11">11月</option><option value="m12">12月</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 统计四宫格 -->
+                        <div id="tag-stats-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4 hidden fade-in">
+                            <div class="bg-white dark:bg-dayone-darkCard p-4 rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm flex flex-col justify-between">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i data-lucide="layers" class="w-3 h-3 inline pb-0.5"></i> 累积篇数</span>
+                                <span id="tag-stat-count" class="text-3xl font-black text-dayone-blue">0</span>
+                            </div>
+                            <div class="bg-white dark:bg-dayone-darkCard p-4 rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm flex flex-col justify-between">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i data-lucide="type" class="w-3 h-3 inline pb-0.5"></i> 敲击字数</span>
+                                <span id="tag-stat-words" class="text-3xl font-black text-emerald-500">0</span>
+                            </div>
+                            <div class="bg-white dark:bg-dayone-darkCard p-4 rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm flex flex-col justify-between">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i data-lucide="smile" class="w-3 h-3 inline pb-0.5"></i> 核心心境</span>
+                                <span id="tag-stat-mood" class="text-xl font-bold text-slate-700 dark:text-slate-200 mt-1 truncate">-</span>
+                            </div>
+                            <div class="bg-white dark:bg-dayone-darkCard p-4 rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm flex flex-col justify-between">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i data-lucide="activity" class="w-3 h-3 inline pb-0.5"></i> 高频状态</span>
+                                <span id="tag-stat-activity" class="text-xl font-bold text-slate-700 dark:text-slate-200 mt-1 truncate">-</span>
+                            </div>
+                        </div>
+
+                        <!-- 日记流 -->
+                        <div id="tags-diaries-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-20">
+                            <div class="md:col-span-2 text-center py-20 bg-white dark:bg-dayone-darkCard rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm">
+                                <p class="text-sm text-slate-400">点击左侧分类标签查看内容</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: 数据看板区 -->
+            <div id="page-insights" class="tab-content hidden flex-1 overflow-y-auto p-6 md:p-8 max-w-[1400px] mx-auto w-full space-y-8 fade-in">
+                
+                <!-- 全局时间筛选头部 (Insights) - 强大的时间引擎 -->
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+                    <div>
+                        <h2 class="text-3xl font-extrabold tracking-tight">回忆数据分析</h2>
+                        <p class="text-sm text-slate-400 mt-2">探索你记录的每一笔时光足迹，洞察内心的波澜。</p>
+                    </div>
+                    
+                    <div class="flex flex-wrap items-center gap-2 bg-white dark:bg-dayone-darkCard p-1.5 rounded-xl border border-slate-200 dark:border-dayone-darkBorder shadow-sm">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-2 mr-1">时光引擎:</span>
+                        <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                            <button onclick="setInsightsFilter('all')" id="ins-flt-all" class="px-3 py-1 text-xs font-bold rounded-md bg-white dark:bg-slate-700 shadow-sm text-slate-800 dark:text-white transition">全部</button>
+                            <button onclick="setInsightsFilter('month')" id="ins-flt-month" class="px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition">本月</button>
+                            <button onclick="setInsightsFilter('quarter')" id="ins-flt-quarter" class="px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition">本季</button>
+                            <button onclick="setInsightsFilter('year')" id="ins-flt-year" class="px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition">今年</button>
+                        </div>
+                        <div class="flex items-center gap-1 border-l border-slate-200 dark:border-slate-700 pl-2">
+                            <select id="ins-flt-year-sel" onchange="setInsightsFilter('custom')" class="text-xs bg-transparent font-medium text-slate-600 dark:text-slate-300 outline-none cursor-pointer"></select>
+                            <select id="ins-flt-range-sel" onchange="setInsightsFilter('custom')" class="text-xs bg-transparent font-medium text-slate-600 dark:text-slate-300 outline-none cursor-pointer">
+                                <option value="year">全年</option>
+                                <option value="q1">第一季度</option><option value="q2">第二季度</option><option value="q3">第三季度</option><option value="q4">第四季度</option>
+                                <option value="m1">1月</option><option value="m2">2月</option><option value="m3">3月</option><option value="m4">4月</option>
+                                <option value="m5">5月</option><option value="m6">6月</option><option value="m7">7月</option><option value="m8">8月</option>
+                                <option value="m9">9月</option><option value="m10">10月</option><option value="m11">11月</option><option value="m12">12月</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 顶部核心数据概览 -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-dayone-darkCard p-5 rounded-3xl border border-blue-100/50 dark:border-dayone-darkBorder shadow-sm flex flex-col justify-between transition hover:-translate-y-1">
+                        <div class="flex items-center gap-2 text-slate-500 mb-2"><i data-lucide="book-open" class="w-4 h-4"></i><span class="text-xs font-bold uppercase tracking-wider">该时段篇数</span></div>
+                        <div class="mt-2"><span id="insights-total-entries" class="text-4xl font-black text-dayone-blue">0</span> <span class="text-xs font-bold text-slate-400">篇</span></div>
+                    </div>
+                    <div class="bg-gradient-to-br from-rose-50 to-white dark:from-rose-950/20 dark:to-dayone-darkCard p-5 rounded-3xl border border-rose-100/50 dark:border-dayone-darkBorder shadow-sm flex flex-col justify-between transition hover:-translate-y-1">
+                        <div class="flex items-center gap-2 text-slate-500 mb-2"><i data-lucide="image" class="w-4 h-4"></i><span class="text-xs font-bold uppercase tracking-wider">定格瞬间 (照片)</span></div>
+                        <div class="mt-2"><span id="insights-total-photos" class="text-4xl font-black text-rose-500">0</span> <span class="text-xs font-bold text-slate-400">张</span></div>
+                    </div>
+                    <div class="bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/20 dark:to-dayone-darkCard p-5 rounded-3xl border border-emerald-100/50 dark:border-dayone-darkBorder shadow-sm flex flex-col justify-between transition hover:-translate-y-1">
+                        <div class="flex items-center gap-2 text-slate-500 mb-2"><i data-lucide="pen-tool" class="w-4 h-4"></i><span class="text-xs font-bold uppercase tracking-wider">累计敲击字数</span></div>
+                        <div class="mt-2"><span id="insights-total-words" class="text-4xl font-black text-emerald-500">0</span> <span class="text-xs font-bold text-slate-400">字</span></div>
+                    </div>
+                    <div class="bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-950/20 dark:to-dayone-darkCard p-5 rounded-3xl border border-indigo-100/50 dark:border-dayone-darkBorder shadow-sm flex flex-col justify-between transition hover:-translate-y-1">
+                        <div class="flex items-center gap-2 text-slate-500 mb-2"><i data-lucide="activity" class="w-4 h-4"></i><span class="text-xs font-bold uppercase tracking-wider">当前时段记录率</span></div>
+                        <div class="mt-2"><span id="insights-total-rate" class="text-4xl font-black text-indigo-500">0%</span></div>
+                    </div>
+                </div>
+
+                <!-- 空数据提示 -->
+                <div id="insights-empty" class="hidden text-center py-20 bg-white dark:bg-dayone-darkCard rounded-3xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm">
+                    <i data-lucide="bar-chart-2" class="w-12 h-12 text-slate-200 dark:text-slate-700 mx-auto mb-4"></i>
+                    <p class="text-slate-500 font-medium">所选时间范围内没有足够的数据，去书写吧！</p>
+                </div>
+
+                <div id="insights-charts" class="hidden space-y-6">
+                    
+                    <!-- ✨ 重构第一排：月、季、年 联动热力图组 -->
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        
+                        <!-- 月视图 (标准日历，最易读，占比最少) -->
+                        <div class="lg:col-span-3 bg-white dark:bg-dayone-darkCard p-5 rounded-3xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm flex flex-col">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-sm font-extrabold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                                    <i data-lucide="calendar" class="text-dayone-blue w-4 h-4"></i> 月度足迹
+                                </h3>
+                                <span id="heatmap-label-month" class="text-[10px] text-slate-500 font-bold bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg"></span>
+                            </div>
+                            <div class="w-full pb-2 flex-1 flex items-center justify-center">
+                                <div id="heatmap-container-month" class="w-full max-w-[200px]"></div>
+                            </div>
+                        </div>
+
+                        <!-- 季度视图 (占比中等) -->
+                        <div class="lg:col-span-4 bg-white dark:bg-dayone-darkCard p-5 rounded-3xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm flex flex-col">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-sm font-extrabold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                                    <i data-lucide="layers" class="text-emerald-500 w-4 h-4"></i> 当季频率
+                                </h3>
+                                <span id="heatmap-label-quarter" class="text-[10px] text-slate-500 font-bold bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg"></span>
+                            </div>
+                            <!-- ✨ 安全防截断与平滑滚动容器 -->
+                            <div id="heatmap-container-quarter" class="w-full overflow-x-auto overflow-y-hidden pb-2 hide-scrollbar"></div>
+                        </div>
+
+                        <!-- 年度视图 (上下两排) -->
+                        <div class="lg:col-span-5 bg-white dark:bg-dayone-darkCard p-5 rounded-3xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm flex flex-col">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-sm font-extrabold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                                    <i data-lucide="grid" class="text-amber-500 w-4 h-4"></i> 年度热力
+                                </h3>
+                                <span id="heatmap-label-year" class="text-[10px] text-slate-500 font-bold bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg"></span>
+                            </div>
+                            <!-- ✨ 安全防截断与平滑滚动容器 (内部已升级为双排结构) -->
+                            <div id="heatmap-container-year" class="w-full overflow-x-auto overflow-y-hidden pb-2 hide-scrollbar"></div>
+                            
+                            <!-- 全局热力图色彩图例 -->
+                            <div class="flex items-center gap-1.5 text-[9px] text-slate-400 font-bold mt-2 justify-end">
+                                <span>少</span>
+                                <div class="w-2.5 h-2.5 rounded-[2px] bg-slate-100 dark:bg-slate-800"></div>
+                                <div class="w-2.5 h-2.5 rounded-[2px] bg-blue-200 dark:bg-blue-900/60"></div>
+                                <div class="w-2.5 h-2.5 rounded-[2px] bg-blue-300 dark:bg-blue-800"></div>
+                                <div class="w-2.5 h-2.5 rounded-[2px] bg-blue-400 dark:bg-blue-600"></div>
+                                <div class="w-2.5 h-2.5 rounded-[2px] bg-dayone-blue shadow-[0_0_8px_rgba(0,122,255,0.4)]"></div>
+                                <span>多</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 第二排：标签云缩小(占比1/3), 心境罗盘(1/3), 状态矩阵(1/3) -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        
+                        <!-- 缩小后的标签云 -->
+                        <div class="bg-white dark:bg-dayone-darkCard p-5 rounded-3xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm flex flex-col">
+                            <h3 class="text-sm font-extrabold flex items-center gap-2 mb-4 text-slate-800 dark:text-slate-100"><i data-lucide="hash" class="text-emerald-500 w-4 h-4"></i> 主题流向</h3>
+                            <div id="insights-tags-cloud" class="flex flex-wrap content-start gap-2 flex-1 overflow-y-auto max-h-[160px] hide-scrollbar">
+                                <!-- 标签云 -->
+                            </div>
+                        </div>
+
+                        <!-- 心情分布 -->
+                        <div class="bg-white dark:bg-dayone-darkCard p-5 rounded-3xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm flex flex-col">
+                            <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200 mb-5 flex items-center gap-2"><i data-lucide="smile" class="w-4 h-4 text-amber-500"></i> 心境罗盘</h3>
+                            <div class="flex flex-col sm:flex-row items-center gap-5 flex-1 w-full justify-center">
+                                <div class="relative w-24 h-24 shrink-0">
+                                    <div id="chart-mood-pie" class="w-full h-full rounded-full shadow-sm transition-all duration-500" style="background: conic-gradient(#f3f4f6 0% 100%);"></div>
+                                    <div class="absolute inset-2.5 bg-white dark:bg-dayone-darkCard rounded-full flex flex-col items-center justify-center shadow-inner">
+                                        <span class="text-[9px] font-extrabold text-slate-400 tracking-wider">MOOD</span>
+                                    </div>
+                                </div>
+                                <div id="chart-mood-legend" class="w-full sm:w-auto flex flex-col justify-center gap-2"></div>
+                            </div>
+                        </div>
+
+                        <!-- 状态习惯 -->
+                        <div class="bg-white dark:bg-dayone-darkCard p-5 rounded-3xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm flex flex-col">
+                            <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><i data-lucide="coffee" class="w-4 h-4 text-orange-500"></i> 状态矩阵</h3>
+                            <div id="chart-activity-matrix" class="flex-1 content-center"></div>
+                        </div>
+                    </div>
+
+                    <!-- 第三排：综合分布 (地点 & 时间) -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-white dark:bg-dayone-darkCard p-5 rounded-3xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm">
+                            <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><i data-lucide="map-pin" class="w-4 h-4 text-rose-500"></i> 核心城市坐标</h3>
+                            <div id="chart-location" class="space-y-4"></div>
+                        </div>
+                        <div class="bg-white dark:bg-dayone-darkCard p-5 rounded-3xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm flex flex-col justify-center">
+                            <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><i data-lucide="clock" class="w-4 h-4 text-indigo-500"></i> 记录时间偏好</h3>
+                            <div id="chart-time" class="flex h-5 rounded-full overflow-hidden w-full bg-slate-100 dark:bg-slate-800 shadow-inner"></div>
+                            <div class="flex justify-between text-[10px] text-slate-500 font-bold mt-2 px-2">
+                                <span>晨间 (5-12)</span><span>午后 (12-18)</span><span>傍晚 (18-22)</span><span>深夜 (22-5)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: 设置区 -->
+            <div id="page-settings" class="tab-content hidden flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full space-y-6 fade-in">
+                <div>
+                    <h2 class="text-2xl font-bold tracking-tight">数据安全与导出</h2>
+                    <p class="text-sm text-slate-400">您的经纬度位置和日记内容绝对保存在本地，纯净的沙盒体验。</p>
+                </div>
+                <div class="bg-white dark:bg-dayone-darkCard rounded-2xl border border-slate-150 dark:border-dayone-darkBorder divide-y divide-slate-100 dark:divide-dayone-darkBorder shadow-sm">
+                    <div class="p-5 flex items-center justify-between border-b border-slate-100 dark:border-dayone-darkBorder">
+                        <div>
+                            <h3 class="text-sm font-bold">备份所有足迹与日记</h3>
+                            <p class="text-xs text-slate-400 mt-1">导出 JSON 格式的历史数据</p>
+                        </div>
+                        <button onclick="exportData()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-sm font-semibold rounded-xl transition flex items-center gap-2">
+                            <i data-lucide="download" class="w-4 h-4"></i> 导出备份
+                        </button>
+                    </div>
+                    
+                    <div class="p-5 flex items-center justify-between border-b border-slate-100 dark:border-dayone-darkBorder">
+                        <div>
+                            <h3 class="text-sm font-bold">恢复数据备份</h3>
+                            <p class="text-xs text-slate-400 mt-1">从 JSON 文件导入并合并当前设备数据</p>
+                        </div>
+                        <button onclick="triggerImport()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-sm font-semibold rounded-xl transition flex items-center gap-2">
+                            <i data-lucide="upload" class="w-4 h-4"></i> 导入数据
+                        </button>
+                    </div>
+
+                    <div class="p-5 flex items-center justify-between">
+                        <div>
+                            <h3 class="text-sm font-bold text-rose-500">抹除全部数据</h3>
+                            <p class="text-xs text-slate-400 mt-1">彻底清空此设备的日记存储 (默认清空测试数据)</p>
+                        </div>
+                        <button onclick="clearAllData()" class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-sm font-semibold rounded-xl transition flex items-center gap-2">
+                            <i data-lucide="alert-triangle" class="w-4 h-4"></i> 清空
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 移动端底栏 -->
+            <nav class="md:hidden flex bg-white dark:bg-dayone-darkCard border-t border-slate-200 dark:border-dayone-darkBorder py-2 justify-around z-20 shrink-0">
+                <button onclick="switchTab('journal')" class="flex flex-col items-center gap-1 text-slate-400 active-mobile-tab" id="mob-nav-journal">
+                    <i data-lucide="book-marked" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-semibold">日记书</span>
+                </button>
+                <button onclick="switchTab('tags')" class="flex flex-col items-center gap-1 text-slate-400" id="mob-nav-tags">
+                    <i data-lucide="tags" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-semibold">标签</span>
+                </button>
+                <button onclick="switchTab('insights')" class="flex flex-col items-center gap-1 text-slate-400" id="mob-nav-insights">
+                    <i data-lucide="line-chart" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-semibold">数据</span>
+                </button>
+                <button onclick="switchTab('settings')" class="flex flex-col items-center gap-1 text-slate-400" id="mob-nav-settings">
+                    <i data-lucide="shield-check" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-semibold">管理</span>
+                </button>
+            </nav>
+            
+        </main>
+    </div>
+
+    <!-- Hidden Utils -->
+    <input type="file" id="photo-upload" accept="image/*" onchange="handlePhotoUpload(event)" class="hidden">
+    <!-- 数据导入 input -->
+    <input type="file" id="data-import-upload" accept=".json,application/json" onchange="handleDataImport(event)" class="hidden">
+    
+    <div id="custom-alert" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-dayone-darkCard p-6 rounded-2xl max-w-sm w-full shadow-2xl border border-slate-100 dark:border-dayone-darkBorder text-center space-y-4">
+            <h3 id="alert-title" class="text-base font-bold text-slate-800 dark:text-white">系统提示</h3>
+            <p id="alert-msg" class="text-sm text-slate-500 dark:text-slate-400">操作成功。</p>
+            <button onclick="closeAlert()" class="w-full py-2.5 bg-dayone-blue text-white font-semibold rounded-xl transition">确认</button>
+        </div>
+    </div>
+    <!-- 移动端加号 -->
+    <button onclick="createNewEntry()" class="md:hidden fixed bottom-16 right-5 w-14 h-14 bg-dayone-blue text-white rounded-full flex items-center justify-center shadow-xl shadow-blue-500/30 active:scale-95 transition z-40">
+        <i data-lucide="plus" class="w-6 h-6"></i>
+    </button>
+
+    <script>
+        let diaries = [];
+        let currentDiaryId = null;
+        let editorSelectedDateStr = null; // YYYY-MM-DD, 编辑器当前选中的日记日期
+        let activeTab = 'journal';
+        let activeSubView = 'list'; 
+        
+        let listTimeFilter = 'all'; 
+        let listSpecificDate = null; 
+        
+        let calDisplayMode = 'photo'; 
+        let mapDisplayMode = 'photo'; 
+        let mapInstance = null;
+
+        let currentActiveTag = null;
+        let isSidebarCollapsed = false; 
+
+        // 高级时间筛选引擎状态
+        let insightsFilterState = { type: 'all' }; 
+        let tagFilterState = { type: 'all' };
+
+        function initDateSelectors() {
+            const currentYear = new Date().getFullYear();
+            let yearOptions = '';
+            for (let y = currentYear + 1; y >= currentYear - 5; y--) {
+                yearOptions += `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}年</option>`;
+            }
+            document.getElementById('ins-flt-year-sel').innerHTML = yearOptions;
+            document.getElementById('tag-flt-year-sel').innerHTML = yearOptions;
+        }
+
+        // 统一的时间计算引擎
+        function getFilterRange(stateObj, yearSelId, rangeSelId) {
+            const now = new Date();
+            let start, end, label;
+
+            if (stateObj.type === 'all') {
+                start = new Date(1970, 0, 1); end = new Date(2100, 0, 1); label = "全部历程";
+            } else if (stateObj.type === 'month') {
+                start = new Date(now.getFullYear(), now.getMonth(), 1); end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+                label = `${now.getFullYear()}年${now.getMonth() + 1}月`;
+            } else if (stateObj.type === 'quarter') {
+                const q = Math.floor(now.getMonth() / 3);
+                start = new Date(now.getFullYear(), q * 3, 1); end = new Date(now.getFullYear(), q * 3 + 3, 0, 23, 59, 59);
+                label = `${now.getFullYear()}年 Q${q + 1}`;
+            } else if (stateObj.type === 'year') {
+                start = new Date(now.getFullYear(), 0, 1); end = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+                label = `${now.getFullYear()}年度`;
+            } else if (stateObj.type === 'custom') {
+                const y = parseInt(document.getElementById(yearSelId).value) || now.getFullYear();
+                const range = document.getElementById(rangeSelId).value;
+                if (range === 'year') {
+                    start = new Date(y, 0, 1); end = new Date(y, 11, 31, 23, 59, 59); label = `${y}年度`;
+                } else if (range.startsWith('q')) {
+                    const q = parseInt(range.substring(1)) - 1;
+                    start = new Date(y, q * 3, 1); end = new Date(y, q * 3 + 3, 0, 23, 59, 59); label = `${y}年 Q${q + 1}`;
+                } else if (range.startsWith('m')) {
+                    const m = parseInt(range.substring(1)) - 1;
+                    start = new Date(y, m, 1); end = new Date(y, m + 1, 0, 23, 59, 59); label = `${y}年${m + 1}月`;
+                }
+            }
+            return { start: start.getTime(), end: end.getTime(), label, startDateObj: new Date(start), endDateObj: new Date(end) };
+        }
+
+        function toggleSidebar() {
+            isSidebarCollapsed = !isSidebarCollapsed;
+            const sidebar = document.getElementById('main-sidebar');
+            if (isSidebarCollapsed) { sidebar.classList.add('collapsed'); } 
+            else { sidebar.classList.remove('collapsed'); }
+        }
+
+        const structures = {
+            morning: `【🌅 晨间自省日记】\n\n1. 今天的首要目标：\n- \n\n2. 自我暗示：\n- `,
+            gratitude: `【✨ 三感感恩日记】\n\n1. 感谢大自然或生活中的一件小美好：\n- \n\n2. 感谢一个人：\n- `,
+            retro: `【📊 高效复盘】\n\n1. 高光时刻：\n- \n\n2. 细节优化：\n- `,
+            inspiration: `【🎨 灵感沙盒】\n\n💡 突如其来的脑洞：\n- `,
+            media: `【🍿 观影读书笔记】\n\n📖 名称：《》\n⭐ 评分：\n📝 评语：\n`,
+            mindfulness: `【🧘‍♂️ 正念记录】\n\n🍀 身体感受：\n💭 放下的思绪：\n`
+        };
+
+        function getMockDiaries() {
+            const now = new Date();
+            const today = now.getTime();
+            const lastYearToday = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate(), 14, 30, 0).getTime();
+            const day1 = new Date(now.getFullYear(), now.getMonth(), Math.max(1, now.getDate() - 2), 21, 0, 0).getTime();
+            const dayPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15, 8, 30, 0).getTime();
+
+            return [
+                {
+                    id: 'd-1', title: "去三里屯开了个很有启启发会",
+                    content: "今天在北京见了几个合伙人。城市节奏很快，但大家碰撞出的火花让人兴奋。这个日记本的地图功能太酷了，以后每到一个城市都要留下一篇回忆。",
+                    mood: "😃 极其愉快", weather: "☀️ 晴空万里", activity: "💻 沉浸工作", tags: "工作, 北京",
+                    location: "北京市 朝阳区", lat: 39.9328, lng: 116.4552, 
+                    photo: "https://images.unsplash.com/photo-1508804185872-d7badad00f7d?w=1200&auto=format&fit=crop&q=85", timestamp: today
+                },
+                {
+                    id: 'd-2', title: "【去年今日】成都的慢时光",
+                    content: "去年今天我正在成都旅行。那里的茶馆、火锅和街巷里慵懒的气息让我至今难忘。当时喝茶发呆了一下午，感觉那是灵魂最自由的一刻。",
+                    mood: "🙂 平静充实", weather: "☁️ 多云沉静", activity: "✈️ 旅行出差", tags: "成都, 旅行",
+                    location: "成都市 锦江区", lat: 30.6586, lng: 104.0648, 
+                    photo: "https://images.unsplash.com/photo-1542640244-7e672d6cb461?w=1200&auto=format&fit=crop&q=85", timestamp: lastYearToday
+                },
+                {
+                    id: 'd-3', title: "上海黄浦江畔的晚风",
+                    content: "站在外滩，吹着风，看着对岸灯火辉煌。生活或许就像这江水，滚滚向前，不会为任何人停留。",
+                    mood: "🧘 处于冥想", weather: "💨 微风拂面", activity: "☕ 慢享生活", tags: "思考, 工作, 上海",
+                    location: "上海市 黄浦区", lat: 31.2354, lng: 121.4886, 
+                    photo: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200&auto=format&fit=crop&q=85", timestamp: day1
+                },
+                {
+                    id: 'd-4', title: "上个月在三亚海滩，彻底躺平",
+                    content: "翻看上个月的记录。当时请了年假飞到海南。踩在细软的沙滩上，什么房贷车贷都见鬼去吧。",
+                    mood: "😃 极其愉快", weather: "☀️ 晴空万里", activity: "🛌 彻底放松", tags: "度假, 大海",
+                    location: "三亚市 吉阳区", lat: 18.2325, lng: 109.5218, 
+                    photo: "https://images.unsplash.com/photo-1540202404-b71114251039?w=1200&auto=format&fit=crop&q=85", timestamp: dayPrevMonth
+                }
+            ];
+        }
+
+        function showAlert(title, msg) {
+            document.getElementById('alert-title').innerText = title; document.getElementById('alert-msg').innerText = msg;
+            document.getElementById('custom-alert').classList.remove('hidden');
+        }
+        function closeAlert() { document.getElementById('custom-alert').classList.add('hidden'); }
+
+        function initTheme() {
+            if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else { document.documentElement.classList.remove('dark'); }
+        }
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+            lucide.createIcons();
+        }
+        
+        function calculateStreak() {
+            document.getElementById('streak-num').innerText = diaries.length > 0 ? '持续中' : '0天';
+            document.getElementById('streak-progress').style.width = diaries.length > 0 ? '10%' : '0%';
+        }
+
+        window.onload = function() {
+            initTheme();
+            initDateSelectors();
+            loadDiariesFromStorage();
+            switchTab('journal');
+            switchSubView('list');
+            lucide.createIcons();
+        };
+
+        // ===== 云同步支持 =====
+        var _lastDiaryStr = localStorage.getItem('dayone_premium_diaries') || '';
+        var _syncReloading = false;
+
+        // 保存到 localStorage 并更新追踪值
+        function saveDiariesToLocal() {
+            var str = JSON.stringify(diaries);
+            localStorage.setItem('dayone_premium_diaries', str);
+            _lastDiaryStr = str;
+            _notifyParentDash();
+        }
+
+        // 轻量级重载（同步轮询用）：只读 localStorage + 重新渲染，不自动聚焦日记
+        function reloadFromSync() {
+            var saved = localStorage.getItem('dayone_premium_diaries');
+            if (!saved) return;
+            _lastDiaryStr = saved;
+            _syncReloading = true;
+            try {
+                diaries = JSON.parse(saved);
+                diaries.sort((a, b) => b.timestamp - a.timestamp);
+                renderDiariesList();
+                renderCalendarView();
+                renderOnThisDayView();
+                calculateStreak();
+                // 如果当前打开的日记还在列表中，保持选中；否则不强制聚焦
+                if (currentDiaryId && diaries.find(d => d.id === currentDiaryId)) {
+                    openDiary(currentDiaryId);
+                }
+                if (typeof activeSubView !== 'undefined' && activeSubView === 'map') renderMapView();
+            } catch(e) { console.error('[diary] 同步重载失败', e); }
+            _syncReloading = false;
+        }
+
+        // 每2秒轮询 localStorage，检测外部变更（同步/其他标签页）
+        setInterval(function() {
+            if (_syncReloading) return;
+            var current = localStorage.getItem('dayone_premium_diaries') || '';
+            if (current !== _lastDiaryStr) {
+                console.log('[diary] 检测到外部数据变更（同步/其他标签），重新加载...');
+                reloadFromSync();
+            }
+        }, 2000);
+
+        function loadDiariesFromStorage() {
+            let saved = localStorage.getItem('dayone_premium_diaries');
+            _lastDiaryStr = saved || '';
+            
+            // 如果不存在记录键，则生成Mock（用户清空后键为 '[]'，将不会触发此逻辑保持干净）
+            // 但如果云同步已开启，不生成 Mock，等待同步数据到达，避免覆盖云端数据
+            if (!saved) {
+                var syncOn = false;
+                try { syncOn = window.parent && window.parent.SyncEngine && window.parent.SyncEngine.isConfigured(); } catch(e) {}
+                if (syncOn) {
+                    // 同步已开启但本地无数据，先显示空列表，等同步拉取后刷新
+                    diaries = [];
+                } else {
+                    diaries = getMockDiaries();
+                    saveDiariesToLocal();
+                }
+            } else { 
+                diaries = JSON.parse(saved); 
+            }
+            
+            diaries.sort((a, b) => b.timestamp - a.timestamp);
+            
+            renderDiariesList();
+            renderCalendarView();
+            renderOnThisDayView();
+            calculateStreak();
+            
+            // 进入日记模块始终展示空白新建页（今天日期），不自动打开已有日记
+            createNewEntry();
+        }
+
+        function switchTab(tabId) {
+            activeTab = tabId;
+            ['journal', 'tags', 'insights', 'settings'].forEach(t => {
+                const btn = document.getElementById(`nav-${t}`); const mobBtn = document.getElementById(`mob-nav-${t}`);
+                if (t === tabId) {
+                    btn?.classList.add('bg-blue-50', 'dark:bg-blue-950/40', 'text-dayone-blue'); btn?.classList.remove('text-slate-600', 'hover:bg-slate-50'); mobBtn?.classList.add('text-dayone-blue');
+                } else {
+                    btn?.classList.remove('bg-blue-50', 'dark:bg-blue-950/40', 'text-dayone-blue'); btn?.classList.add('text-slate-600', 'hover:bg-slate-50'); mobBtn?.classList.remove('text-dayone-blue');
+                }
+            });
+            document.querySelectorAll('.tab-content').forEach(p => p.classList.add('hidden'));
+            document.getElementById(`page-${tabId}`).classList.remove('hidden');
+
+            if (tabId === 'tags') renderTagsPage();
+            if (tabId === 'insights') renderInsightsPage(); 
+        }
+
+        function switchSubView(view) {
+            activeSubView = view;
+            const panels = ['list', 'calendar', 'map', 'onthisday'];
+            panels.forEach(p => {
+                const btn = document.getElementById(`subview-btn-${p}`);
+                const panel = document.getElementById(`subpanel-${p}`);
+                if (p === view) {
+                    btn.classList.add('bg-white', 'dark:bg-dayone-darkCard', 'shadow-sm', 'text-dayone-blue');
+                    btn.classList.remove('text-slate-500', 'hover:bg-slate-100', 'dark:hover:bg-slate-800');
+                    panel.classList.remove('hidden');
+                } else {
+                    btn.classList.remove('bg-white', 'dark:bg-dayone-darkCard', 'shadow-sm', 'text-dayone-blue');
+                    btn.classList.add('text-slate-500', 'hover:bg-slate-100', 'dark:hover:bg-slate-800');
+                    panel.classList.add('hidden');
+                }
+            });
+
+            if (view === 'map') renderMapView();
+            else if (view === 'calendar') renderCalendarView();
+            else if (view === 'onthisday') renderOnThisDayView();
+            else if (view === 'list') renderDiariesList();
+        }
+
+        function setListTimeFilter(mode) {
+            listTimeFilter = mode;
+            document.getElementById('list-date-picker').value = ""; 
+            ['all', 'week', 'month'].forEach(m => {
+                const btn = document.getElementById(`filter-btn-${m}`);
+                if (m === mode) {
+                    btn.classList.add('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-800', 'dark:text-white');
+                    btn.classList.remove('text-slate-500');
+                } else {
+                    btn.classList.remove('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-800', 'dark:text-white');
+                    btn.classList.add('text-slate-500');
+                }
+            });
+            renderDiariesList(document.getElementById('search-input').value);
+        }
+
+        function setListSpecificDate(dateStr) {
+            if(!dateStr) { setListTimeFilter('all'); return; }
+            listTimeFilter = 'specific_date';
+            listSpecificDate = new Date(dateStr).toDateString();
+            ['all', 'week', 'month'].forEach(m => {
+                const btn = document.getElementById(`filter-btn-${m}`);
+                btn.classList.remove('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-800', 'dark:text-white');
+                btn.classList.add('text-slate-500');
+            });
+            renderDiariesList(document.getElementById('search-input').value);
+        }
+
+        function renderDiariesList(filterText = '') {
+            const listContainer = document.getElementById('list-items-container');
+            listContainer.innerHTML = '';
+            const now = new Date();
+            
+            let filtered = diaries.filter(d => {
+                const searchStr = `${d.title||''} ${d.content||''} ${d.tags||''} ${d.location||''}`.toLowerCase();
+                if (filterText && !searchStr.includes(filterText.toLowerCase())) return false;
+                
+                const dDate = new Date(d.timestamp);
+                if (listTimeFilter === 'week') {
+                    const diffTime = Math.abs(now - dDate);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                    if (diffDays > 7) return false;
+                } else if (listTimeFilter === 'month') {
+                    if (dDate.getMonth() !== now.getMonth() || dDate.getFullYear() !== now.getFullYear()) return false;
+                } else if (listTimeFilter === 'specific_date') {
+                    if (dDate.toDateString() !== listSpecificDate) return false;
+                }
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                listContainer.innerHTML = `<div class="text-center py-16"><i data-lucide="calendar-x" class="w-8 h-8 mx-auto text-slate-300 mb-2"></i><p class="text-xs text-slate-400">该时间下无匹配回忆</p></div>`;
+                lucide.createIcons(); return;
+            }
+
+            filtered.forEach(d => {
+                const card = document.createElement('div');
+                card.id = `card-${d.id}`;
+                const isActive = d.id === currentDiaryId;
+                card.className = `p-4 rounded-2xl cursor-pointer border transition-all duration-200 ${isActive ? 'bg-blue-50/50 dark:bg-blue-950/20 border-dayone-blue/30 shadow-sm' : 'bg-transparent border-slate-100 dark:border-dayone-darkBorder hover:bg-slate-50 dark:hover:bg-slate-800/30'}`;
+                card.onclick = () => openDiary(d.id);
+
+                const dateObj = new Date(d.timestamp);
+                const hasImage = d.photo ? `<div class="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden shrink-0"><img src="${d.photo}" class="w-full h-full object-cover"></div>` : '';
+                const locBadge = d.location ? `<span class="text-[10px] text-slate-400 flex items-center gap-0.5 max-w-[100px] truncate" title="${d.location}"><svg class="w-2.5 h-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>${d.location.split(' ')[0]}</span>` : '';
+
+                let tagsHTML = '';
+                if(d.tags) {
+                    // 支持中英文逗号分割标签
+                    const tagList = d.tags.split(/[,，]/).slice(0, 2);
+                    tagsHTML = tagList.map(t => `<span class="text-[10px] text-dayone-blue truncate font-medium">#${t.trim()}</span>`).join('');
+                }
+
+                card.innerHTML = `
+                    <div class="flex gap-3">
+                        <div class="text-center shrink-0 w-10 flex flex-col justify-center">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase">${dateObj.toLocaleString('zh-CN', { weekday: 'short' })}</span>
+                            <span class="text-lg font-extrabold text-slate-800 dark:text-white leading-none">${dateObj.getDate()}</span>
+                            <span class="text-[9px] text-slate-400">${dateObj.toLocaleString('zh-CN', { month: 'short' })}</span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h4 class="text-sm font-bold truncate text-slate-800 dark:text-slate-100">${d.title || '无标题记录'}</h4>
+                            <p class="text-xs text-slate-400 dark:text-slate-500 line-clamp-2 mt-1 leading-relaxed">${d.content || '未落笔书写...'}</p>
+                            <div class="flex items-center gap-2 mt-2 flex-wrap">
+                                <span class="text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md text-slate-500">${d.mood ? d.mood.split(' ')[0] : '🙂'}</span>
+                                ${tagsHTML}
+                                ${locBadge}
+                            </div>
+                        </div>
+                        ${hasImage}
+                    </div>
+                `;
+                listContainer.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        function filterDiaries() { renderDiariesList(document.getElementById('search-input').value); }
+
+        function setCalMode(mode) {
+            calDisplayMode = mode;
+            ['photo', 'mood', 'weather', 'activity', 'city'].forEach(m => {
+                const btn = document.getElementById(`cal-mode-${m}`);
+                if(m === mode) {
+                    btn.classList.replace('bg-white', 'bg-dayone-blue'); btn.classList.replace('dark:bg-slate-800', 'bg-dayone-blue');
+                    btn.classList.replace('text-slate-500', 'text-white'); btn.classList.remove('border', 'border-slate-200', 'dark:border-slate-700');
+                } else {
+                    btn.classList.replace('bg-dayone-blue', 'bg-white'); if(document.documentElement.classList.contains('dark')) btn.classList.add('dark:bg-slate-800');
+                    btn.classList.replace('text-white', 'text-slate-500'); btn.classList.add('border', 'border-slate-200', 'dark:border-slate-700');
+                }
+            });
+            renderCalendarView();
+        }
+
+        function renderCalendarView() {
+            const container = document.getElementById('calendar-scroll-area');
+            container.innerHTML = '';
+            const today = new Date();
+            
+            for (let offset = 0; offset < 3; offset++) {
+                const targetMonthDate = new Date(today.getFullYear(), today.getMonth() - offset, 1);
+                const year = targetMonthDate.getFullYear();
+                const month = targetMonthDate.getMonth();
+                const monthLabel = targetMonthDate.toLocaleString('zh-CN', { year: 'numeric', month: 'long' });
+
+                const monthDiv = document.createElement('div');
+                monthDiv.className = "space-y-2";
+                monthDiv.innerHTML = `<h3 class="text-sm font-bold text-slate-400 dark:text-slate-500 tracking-wide uppercase px-1">${monthLabel}</h3>`;
+
+                const gridHead = document.createElement('div');
+                gridHead.className = "grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 py-1";
+                ['日', '一', '二', '三', '四', '五', '六'].forEach(wd => gridHead.innerHTML += `<div>${wd}</div>`);
+                monthDiv.appendChild(gridHead);
+
+                const gridBody = document.createElement('div');
+                gridBody.className = "grid grid-cols-7 gap-1";
+                const firstDayIndex = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+                for (let i = 0; i < firstDayIndex; i++) {
+                    const emptyCell = document.createElement('div');
+                    emptyCell.className = "aspect-square bg-slate-50/50 dark:bg-slate-900/40 rounded-lg";
+                    gridBody.appendChild(emptyCell);
+                }
+
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const cell = document.createElement('div');
+                    cell.className = "aspect-square relative rounded-xl flex flex-col items-center justify-center text-xs font-semibold cursor-pointer border border-slate-100 dark:border-dayone-darkBorder hover:scale-[1.03] transition-all bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 overflow-hidden";
+                    
+                    const targetDayString = new Date(year, month, day).toDateString();
+                    const matchedDiaries = diaries.filter(d => new Date(d.timestamp).toDateString() === targetDayString);
+                    
+                    if (matchedDiaries.length > 0) {
+                        const diary = matchedDiaries[0];
+                        if (calDisplayMode === 'photo' && diary.photo) {
+                            cell.className += " calendar-photo-cell text-white border-transparent shadow-sm";
+                            cell.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.35)), url(${diary.photo})`;
+                            cell.innerHTML = `<span class="drop-shadow-md text-xs font-extrabold">${day}</span>`;
+                        } else {
+                            let iconToDisplay = '✍️';
+                            let isTextMode = false;
+                            if(calDisplayMode === 'mood' && diary.mood) iconToDisplay = diary.mood.split(' ')[0];
+                            else if(calDisplayMode === 'weather' && diary.weather) iconToDisplay = diary.weather.split(' ')[0];
+                            else if(calDisplayMode === 'activity' && diary.activity) iconToDisplay = diary.activity.split(' ')[0];
+                            else if(calDisplayMode === 'city') {
+                                if (diary.location) { iconToDisplay = diary.location.split(' ')[0]; isTextMode = true; } 
+                                else { iconToDisplay = '📍'; }
+                            }
+                            else if(calDisplayMode === 'photo') iconToDisplay = diary.mood ? diary.mood.split(' ')[0] : '✍️';
+
+                            cell.className += " bg-blue-100/70 dark:bg-blue-900/30 text-dayone-blue border-blue-200/50 font-bold";
+                            const bottomTextClass = isTextMode ? "text-[9px] w-full text-center px-0.5 truncate leading-none" : "text-[12px]";
+                            cell.innerHTML = `<span>${day}</span><span class="absolute bottom-1.5 text-dayone-blue/80 opacity-90 ${bottomTextClass}">${iconToDisplay}</span>`;
+                        }
+                        cell.onclick = () => { switchSubView('list'); openDiary(diary.id); };
+                    } else {
+                        cell.innerHTML = `<span>${day}</span>`;
+                        cell.onclick = () => createDiaryOnDate(year, month, day);
+                    }
+                    gridBody.appendChild(cell);
+                }
+                monthDiv.appendChild(gridBody); container.appendChild(monthDiv);
+            }
+        }
+
+        function createDiaryOnDate(year, month, day) {
+            createNewEntry();
+            const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            const selectedDate = new Date(year, month, day, 10, 0, 0);
+            currentDiaryId = 'new-' + Date.now() + '_custom_' + selectedDate.getTime();
+            document.getElementById('editor-date-badge').innerText = selectedDate.toLocaleString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' }) + " (补录历史)";
+            setEditorDatePicker(dateStr);
+        }
+
+        function setMapMode(mode) {
+            mapDisplayMode = mode;
+            ['pin', 'photo'].forEach(m => {
+                const btn = document.getElementById(`map-mode-${m}`);
+                if (m === mode) {
+                    btn.classList.add('bg-blue-50', 'dark:bg-blue-900/40', 'text-dayone-blue'); btn.classList.remove('text-slate-500', 'dark:text-slate-400', 'hover:bg-slate-50', 'dark:hover:bg-slate-700');
+                } else {
+                    btn.classList.remove('bg-blue-50', 'dark:bg-blue-900/40', 'text-dayone-blue'); btn.classList.add('text-slate-500', 'dark:text-slate-400', 'hover:bg-slate-50', 'dark:hover:bg-slate-700');
+                }
+            });
+            renderMapView();
+        }
+
+        function renderMapView() {
+            setTimeout(() => {
+                if (!mapInstance) {
+                    mapInstance = L.map('leaflet-map', { zoomControl: false }).setView([35.8617, 104.1954], 4); 
+                    // 更换为高德中文地图切片
+                    L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', { 
+                        subdomains: ['1', '2', '3', '4'], 
+                        attribution: '&copy; 高德地图' 
+                    }).addTo(mapInstance);
+                    L.control.zoom({ position: 'bottomright' }).addTo(mapInstance);
+                }
+                mapInstance.invalidateSize(); 
+                mapInstance.eachLayer((layer) => { if (layer instanceof L.Marker) mapInstance.removeLayer(layer); });
+
+                const bounds = [];
+                diaries.forEach(d => {
+                    if (d.lat && d.lng) {
+                        let marker;
+                        const locName = d.location ? d.location.split(' ')[0] : '未知地';
+                        
+                        if (mapDisplayMode === 'photo') {
+                            const bgImage = d.photo ? `url('${d.photo}')` : 'none';
+                            const bgColor = d.photo ? 'transparent' : 'var(--dayone-blue)';
+                            const innerEmoji = d.photo ? '' : `<span style="font-size:24px; line-height:56px;">${d.mood ? d.mood.split(' ')[0] : '📝'}</span>`;
+
+                            const iconHtml = `
+                                <div style="width:60px; height:60px; border-radius:12px; border:2px solid white; box-shadow:0 4px 8px rgba(0,0,0,0.3); background-image:${bgImage}; background-color:${bgColor}; background-size:cover; background-position:center; position:relative; text-align:center;">
+                                    ${innerEmoji}
+                                    <div style="position:absolute; bottom:0; width:100%; background:rgba(0,0,0,0.55); color:white; font-size:10px; font-weight:bold; text-align:center; border-bottom-left-radius:10px; border-bottom-right-radius:10px; padding:2px 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; backdrop-filter: blur(2px);">
+                                        ${locName}
+                                    </div>
+                                </div>`;
+
+                            const photoIcon = L.divIcon({ className: 'custom-photo-pin', html: iconHtml, iconSize: [60, 60], iconAnchor: [30, 60], tooltipAnchor: [0, -60] });
+                            marker = L.marker([d.lat, d.lng], { icon: photoIcon }).addTo(mapInstance);
+                        } else {
+                            marker = L.marker([d.lat, d.lng]).addTo(mapInstance);
+                            marker.bindTooltip(`<b>${d.title || '记录'}</b><br><span style="color:#666; font-size:10px;">${new Date(d.timestamp).toLocaleDateString()}</span>`, { direction: 'top', offset: [0, -20] });
+                        }
+                        marker.on('click', () => { switchSubView('list'); openDiary(d.id); });
+                        bounds.push([d.lat, d.lng]);
+                    }
+                });
+                if (bounds.length > 0) mapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+            }, 50);
+        }
+
+        function fetchLocation() {
+            const locInput = document.getElementById('meta-location');
+            const latInput = document.getElementById('meta-lat');
+            const lngInput = document.getElementById('meta-lng');
+            
+            locInput.value = "📍 正在搜星定位中...";
+            if (!navigator.geolocation) { locInput.value = ""; return showAlert('受限', '无法调用位置服务。'); }
+
+            navigator.geolocation.getCurrentPosition(async (position) => {
+                const lat = position.coords.latitude; const lng = position.coords.longitude;
+                latInput.value = lat; lngInput.value = lng;
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1`);
+                    const data = await res.json();
+                    let locName = "";
+                    if (data.address) { locName = `${data.address.city || data.address.town || data.address.county || ""} ${data.address.suburb || data.address.road || ""}`.trim(); }
+                    locInput.value = locName || "坐标已获取";
+                } catch (e) { locInput.value = `纬度: ${lat.toFixed(2)}, 经度: ${lng.toFixed(2)}`; }
+            }, () => { locInput.value = ""; showAlert('定位失败', '定位请求被拒绝或超时。可手动填写。'); }, { timeout: 8000 });
+        }
+
+        // 通过文字反查经纬度，让地图能够显示用户手动输入的城市
+        async function geocodeManualLocation() {
+            const locInput = document.getElementById('meta-location');
+            const latInput = document.getElementById('meta-lat');
+            const lngInput = document.getElementById('meta-lng');
+            const query = locInput.value.replace(/^[^\w\u4e00-\u9fa5]+/, '').trim();
+            if (!query) return;
+
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    latInput.value = data[0].lat;
+                    lngInput.value = data[0].lon;
+                }
+            } catch (e) {
+                console.error("手动定位解析失败", e);
+            }
+        }
+
+        function renderOnThisDayView() {
+            const container = document.getElementById('subpanel-onthisday');
+            container.innerHTML = '';
+            const today = new Date();
+            const historicalDiaries = diaries.filter(d => {
+                const dDate = new Date(d.timestamp);
+                return dDate.getMonth() === today.getMonth() && dDate.getDate() === today.getDate() && dDate.getFullYear() < today.getFullYear();
+            });
+
+            if (historicalDiaries.length === 0) {
+                container.innerHTML = `<div class="bg-blue-50/50 dark:bg-blue-950/20 p-5 rounded-2xl border border-blue-100/40 text-center space-y-3"><i data-lucide="hourglass" class="w-8 h-8 text-dayone-blue mx-auto opacity-50"></i><p class="text-xs text-slate-500">今天暂无往年回忆。写下今天的故事，它将成为明年的惊喜。</p></div>`;
+                lucide.createIcons(); return;
+            }
+            container.innerHTML = `<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest px-1 mb-2">往年今日回顾：</h3>`;
+            historicalDiaries.forEach(d => {
+                const dateObj = new Date(d.timestamp);
+                const yearsAgo = today.getFullYear() - dateObj.getFullYear();
+                const element = document.createElement('div');
+                element.className = "bg-white dark:bg-dayone-darkCard p-4 rounded-2xl border border-slate-100 dark:border-dayone-darkBorder hover:border-dayone-blue/40 transition cursor-pointer relative space-y-3";
+                element.onclick = () => { switchSubView('list'); openDiary(d.id); };
+                const hasPhoto = d.photo ? `<div class="rounded-xl overflow-hidden aspect-video bg-slate-100"><img src="${d.photo}" class="w-full h-full object-cover"></div>` : '';
+                element.innerHTML = `
+                    <div class="flex items-center justify-between"><span class="text-xs bg-blue-50 dark:bg-blue-950/50 text-dayone-blue px-2.5 py-1 rounded-full font-bold">${yearsAgo} 年前 (${dateObj.getFullYear()}年)</span><span class="text-[10px] text-slate-400">${dateObj.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'})}</span></div>
+                    ${hasPhoto}
+                    <div><h4 class="text-sm font-extrabold text-slate-800 dark:text-white">${d.title}</h4><p class="text-xs text-slate-400 dark:text-slate-500 line-clamp-3 mt-1 leading-relaxed">${d.content}</p></div>
+                `;
+                container.appendChild(element);
+            });
+            lucide.createIcons();
+        }
+
+        // 标签系统更新
+        function setTagFilter(filterType) {
+            tagFilterState.type = filterType;
+            
+            ['all', 'month', 'quarter', 'year'].forEach(m => {
+                const btn = document.getElementById(`tag-flt-${m}`);
+                if (!btn) return;
+                if (m === filterType) {
+                    btn.classList.add('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-800', 'dark:text-white');
+                    btn.classList.remove('text-slate-500');
+                } else {
+                    btn.classList.remove('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-800', 'dark:text-white');
+                    btn.classList.add('text-slate-500');
+                }
+            });
+            if(currentActiveTag) renderTagDiaries(currentActiveTag);
+        }
+
+        function renderTagsPage() {
+            const cloudContainer = document.getElementById('tags-cloud-container');
+            let tagMap = {};
+
+            diaries.forEach(d => {
+                if(d.tags) {
+                    d.tags.split(/[,，]/).forEach(t => {
+                        const cleanTag = t.trim();
+                        if(cleanTag) { tagMap[cleanTag] = (tagMap[cleanTag] || 0) + 1; }
+                    });
+                }
+            });
+
+            const sortedTags = Object.entries(tagMap).sort((a,b) => b[1] - a[1]);
+
+            if (sortedTags.length === 0) {
+                cloudContainer.innerHTML = `<p class="text-sm text-slate-400 w-full text-center py-6">暂无标签记录</p>`;
+                document.getElementById('current-tag-title').innerText = "暂无标签";
+                document.getElementById('tag-stats-grid').classList.add('hidden');
+                document.getElementById('tag-mini-calendar-wrapper').classList.add('hidden');
+                return;
+            }
+
+            cloudContainer.innerHTML = sortedTags.map(([tag, count]) => `
+                <button onclick="selectTag('${tag}')" class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800/30 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-700 dark:text-slate-300 hover:text-dayone-blue text-sm font-bold rounded-xl border border-transparent hover:border-blue-200 dark:hover:border-blue-800 transition flex items-center justify-between group">
+                    <div class="flex items-center gap-2 truncate">
+                        <i data-lucide="hash" class="w-3.5 h-3.5 opacity-40 group-hover:opacity-100 group-hover:text-dayone-blue transition shrink-0"></i> 
+                        <span class="truncate">${tag}</span>
+                    </div>
+                    <span class="text-[10px] bg-white dark:bg-slate-900 px-2 py-0.5 rounded-full text-slate-500 shadow-sm shrink-0">${count}</span>
+                </button>
+            `).join('');
+            lucide.createIcons();
+
+            if(currentActiveTag && tagMap[currentActiveTag]) { renderTagDiaries(currentActiveTag); } 
+            else { selectTag(sortedTags[0][0]); }
+        }
+
+        function selectTag(tagName) {
+            currentActiveTag = tagName;
+            renderTagDiaries(tagName);
+        }
+
+        function renderTagDiaries(tagName) {
+            document.getElementById('current-tag-title').innerHTML = `${tagName}`;
+            const container = document.getElementById('tags-diaries-container');
+            
+            const rangeInfo = getFilterRange(tagFilterState, 'tag-flt-year-sel', 'tag-flt-range-sel');
+            
+            let allMatchedDiaries = diaries.filter(d => {
+                if(!d.tags) return false;
+                return d.tags.split(/[,，]/).map(t => t.trim()).includes(tagName);
+            });
+
+            let displayDiaries = allMatchedDiaries.filter(d => d.timestamp >= rangeInfo.start && d.timestamp <= rangeInfo.end);
+
+            container.innerHTML = '';
+            
+            const statsGrid = document.getElementById('tag-stats-grid');
+            if (displayDiaries.length > 0) {
+                statsGrid.classList.remove('hidden');
+                document.getElementById('tag-stat-count').innerText = displayDiaries.length;
+                document.getElementById('tag-stat-words').innerText = displayDiaries.reduce((acc, d) => acc + (d.content ? d.content.length : 0), 0);
+                
+                let moods = {}, acts = {};
+                displayDiaries.forEach(d => {
+                    if(d.mood) moods[d.mood] = (moods[d.mood] || 0) + 1;
+                    if(d.activity) acts[d.activity] = (acts[d.activity] || 0) + 1;
+                });
+                const topMood = Object.entries(moods).sort((a,b)=>b[1]-a[1])[0];
+                const topAct = Object.entries(acts).sort((a,b)=>b[1]-a[1])[0];
+                document.getElementById('tag-stat-mood').innerText = topMood ? topMood[0] : '暂无';
+                document.getElementById('tag-stat-activity').innerText = topAct ? topAct[0] : '暂无';
+            } else {
+                statsGrid.classList.add('hidden');
+            }
+
+            renderTagMiniCalendar(tagName, displayDiaries, rangeInfo);
+
+            if (displayDiaries.length === 0) {
+                container.innerHTML = `
+                    <div class="md:col-span-2 text-center py-20 bg-white dark:bg-dayone-darkCard rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm">
+                        <i data-lucide="calendar-x" class="w-10 h-10 text-slate-200 dark:text-slate-700 mx-auto mb-3"></i>
+                        <p class="text-sm text-slate-400">该时间跨度内没有相关标签的记录。</p>
+                    </div>`;
+                lucide.createIcons(); return;
+            }
+
+            displayDiaries.forEach(d => {
+                const dateObj = new Date(d.timestamp);
+                const hasPhoto = d.photo ? `<div class="rounded-xl overflow-hidden w-20 h-20 md:w-24 md:h-24 shrink-0 bg-slate-100"><img src="${d.photo}" class="w-full h-full object-cover"></div>` : '';
+                
+                const element = document.createElement('div');
+                element.className = "flex gap-4 p-5 bg-white dark:bg-dayone-darkCard rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm hover:border-dayone-blue/40 hover:shadow-md cursor-pointer transition";
+                element.onclick = () => { switchTab('journal'); switchSubView('list'); openDiary(d.id); };
+                
+                element.innerHTML = `
+                    <div class="flex-1 min-w-0 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1.5 text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+                                <span>${dateObj.getFullYear()}年${dateObj.getMonth()+1}月${dateObj.getDate()}日</span>
+                                <span>·</span>
+                                <span>${d.mood ? d.mood.split(' ')[0] : '📝'}</span>
+                            </div>
+                            <h4 class="text-base font-extrabold text-slate-800 dark:text-white truncate mb-1">${d.title || '无标题记录'}</h4>
+                            <p class="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">${d.content}</p>
+                        </div>
+                    </div>
+                    ${hasPhoto}
+                `;
+                container.appendChild(element);
+            });
+            lucide.createIcons();
+        }
+
+        function renderTagMiniCalendar(tagName, displayDiaries, rangeInfo) {
+            const wrapper = document.getElementById('tag-mini-calendar-wrapper');
+            if (!displayDiaries || displayDiaries.length === 0) {
+                wrapper.classList.add('hidden'); wrapper.innerHTML = ''; return;
+            }
+            wrapper.classList.remove('hidden');
+
+            let anchorDate = new Date(rangeInfo.endDateObj);
+            if (tagFilterState.type === 'all' || anchorDate > new Date()) {
+                const latestDate = new Date(displayDiaries[0].timestamp);
+                anchorDate = latestDate;
+            }
+            
+            const targetYear = anchorDate.getFullYear();
+            const targetMonth = anchorDate.getMonth();
+            const targetQuarter = Math.floor(targetMonth / 3);
+
+            const monthHtml = generateMonthCalendarHeatmap(displayDiaries, targetYear, targetMonth);
+            
+            const quarterStart = new Date(targetYear, targetQuarter * 3, 1);
+            const quarterEnd = new Date(targetYear, targetQuarter * 3 + 3, 0, 23, 59, 59);
+            const quarterHtml = generateAdvancedHeatmap(displayDiaries, quarterStart, quarterEnd, 'w-2 h-2 sm:w-2.5 sm:h-2.5', 'gap-[2px] md:gap-1');
+
+            const yearStart = new Date(targetYear, 0, 1);
+            const yearEnd = new Date(targetYear, 11, 31, 23, 59, 59);
+            
+            let midYearSundayTag = new Date(targetYear, 6, 1);
+            midYearSundayTag.setDate(midYearSundayTag.getDate() - midYearSundayTag.getDay());
+            let row1EndTag = new Date(midYearSundayTag);
+            row1EndTag.setDate(row1EndTag.getDate() - 1);
+            row1EndTag.setHours(23, 59, 59);
+
+            const yearHtml1 = generateAdvancedHeatmap(displayDiaries, yearStart, row1EndTag, 'w-[4px] h-[4px] sm:w-[5px] sm:h-[5px]', 'gap-[1px] md:gap-[2px]');
+            const yearHtml2 = generateAdvancedHeatmap(displayDiaries, midYearSundayTag, yearEnd, 'w-[4px] h-[4px] sm:w-[5px] sm:h-[5px]', 'gap-[1px] md:gap-[2px]');
+            const yearHtml = `<div class="flex flex-col gap-1 md:gap-2">${yearHtml1}${yearHtml2}</div>`;
+
+            const locStats = {}; let validLocCount = 0;
+            displayDiaries.forEach(d => {
+                if(d.location) { const city = d.location.split(' ')[0]; locStats[city] = (locStats[city] || 0) + 1; validLocCount++; }
+            });
+            const topLocs = Object.entries(locStats).sort((a,b)=>b[1]-a[1]).slice(0, 3);
+            let locHtml = '<span class="text-[10px] text-slate-400">暂无地点记录</span>';
+            if (topLocs.length > 0) {
+                locHtml = topLocs.map(([city, count]) => {
+                    const percent = Math.round((count / validLocCount) * 100);
+                    return `
+                        <div class="flex items-center justify-between text-[10px] mb-1">
+                            <span class="text-slate-600 dark:text-slate-300 truncate pr-2"><i data-lucide="map-pin" class="w-3 h-3 inline-block -mt-0.5 mr-0.5 text-slate-400"></i>${city}</span>
+                            <span class="font-semibold text-slate-500">${percent}%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 dark:bg-slate-800 h-1 rounded-full overflow-hidden mb-2 last:mb-0">
+                            <div class="bg-dayone-blue h-full" style="width: ${percent}%"></div>
+                        </div>`;
+                }).join('');
+            }
+
+            wrapper.innerHTML = `
+                <div class="flex flex-col p-4 space-y-4 w-full overflow-hidden">
+                    <div class="w-full">
+                        <div class="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800 pb-2 w-full">
+                            <h4 class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
+                                <i data-lucide="calendar-heart" class="w-3.5 h-3.5 text-dayone-blue"></i> 活跃频率
+                            </h4>
+                            <div class="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded text-[9px] font-bold shrink-0">
+                                <button onclick="switchTagHeatmapTab('month')" id="tag-heat-tab-month" class="px-2 py-0.5 rounded bg-white dark:bg-slate-700 shadow-sm text-slate-700 dark:text-white transition">月</button>
+                                <button onclick="switchTagHeatmapTab('quarter')" id="tag-heat-tab-quarter" class="px-2 py-0.5 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition">季</button>
+                                <button onclick="switchTagHeatmapTab('year')" id="tag-heat-tab-year" class="px-2 py-0.5 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition">年</button>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-slate-50/50 dark:bg-slate-900/30 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 w-full flex justify-center items-center min-h-[140px]">
+                            <div id="tag-heat-view-month" class="w-full transition-opacity duration-200">
+                                <div class="text-[9px] font-bold text-slate-400 text-center mb-2">${targetYear}年${targetMonth+1}月</div>
+                                ${monthHtml}
+                            </div>
+                            <div id="tag-heat-view-quarter" class="w-full hidden transition-opacity duration-200">
+                                <div class="text-[9px] font-bold text-slate-400 text-center mb-2">${targetYear}年 Q${targetQuarter+1}</div>
+                                <div class="w-full overflow-x-auto overflow-y-hidden pb-1 hide-scrollbar">
+                                    ${quarterHtml}
+                                </div>
+                            </div>
+                            <div id="tag-heat-view-year" class="w-full hidden transition-opacity duration-200">
+                                <div class="text-[9px] font-bold text-slate-400 text-center mb-2">${targetYear}年</div>
+                                <div class="w-full overflow-x-auto overflow-y-hidden pb-1 hide-scrollbar">
+                                    ${yearHtml}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="border-t border-slate-100 dark:border-slate-800 pt-3 w-full">
+                        <h4 class="text-[10px] font-bold text-slate-500 uppercase mb-2">主要足迹</h4>
+                        <div class="space-y-1 w-full">
+                            ${locHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        window.switchTagHeatmapTab = function(tab) {
+            ['month', 'quarter', 'year'].forEach(t => {
+                const btn = document.getElementById(`tag-heat-tab-${t}`);
+                const view = document.getElementById(`tag-heat-view-${t}`);
+                if (!btn || !view) return;
+                if (t === tab) {
+                    btn.classList.add('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-700', 'dark:text-white');
+                    btn.classList.remove('text-slate-500', 'hover:text-slate-700', 'dark:hover:text-slate-300');
+                    view.classList.remove('hidden');
+                } else {
+                    btn.classList.remove('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-700', 'dark:text-white');
+                    btn.classList.add('text-slate-500', 'hover:text-slate-700', 'dark:hover:text-slate-300');
+                    view.classList.add('hidden');
+                }
+            });
+        }
+
+        function setInsightsFilter(filterType) {
+            insightsFilterState.type = filterType;
+            
+            ['all', 'month', 'quarter', 'year'].forEach(m => {
+                const btn = document.getElementById(`ins-flt-${m}`);
+                if (!btn) return;
+                if (m === filterType) {
+                    btn.classList.add('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-800', 'dark:text-white');
+                    btn.classList.remove('text-slate-500');
+                } else {
+                    btn.classList.remove('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-800', 'dark:text-white');
+                    btn.classList.add('text-slate-500');
+                }
+            });
+            renderInsightsPage();
+        }
+
+        function renderInsightsPage() {
+            const rangeInfo = getFilterRange(insightsFilterState, 'ins-flt-year-sel', 'ins-flt-range-sel');
+            
+            let filteredDiaries = diaries.filter(d => d.timestamp >= rangeInfo.start && d.timestamp <= rangeInfo.end);
+
+            const totalEntries = filteredDiaries.length;
+            const totalPhotos = filteredDiaries.filter(d => d.photo).length;
+            const totalWords = filteredDiaries.reduce((acc, d) => acc + (d.content ? d.content.length : 0), 0);
+            
+            const daysInPeriod = Math.max(1, Math.ceil((Math.min(rangeInfo.end, Date.now()) - rangeInfo.start) / (1000 * 60 * 60 * 24)));
+            const uniqueDays = new Set(filteredDiaries.map(d => new Date(d.timestamp).toDateString())).size;
+            let rate = totalEntries === 0 ? 0 : Math.round((uniqueDays / daysInPeriod) * 100);
+            if(rate > 100) rate = 100;
+
+            document.getElementById('insights-total-entries').innerText = totalEntries;
+            document.getElementById('insights-total-photos').innerText = totalPhotos;
+            document.getElementById('insights-total-words').innerText = totalWords;
+            document.getElementById('insights-total-rate').innerText = totalEntries === 0 ? '0%' : rate + '%';
+
+            if (totalEntries === 0) {
+                document.getElementById('insights-empty').classList.remove('hidden');
+                document.getElementById('insights-charts').classList.add('hidden');
+                return;
+            }
+            document.getElementById('insights-empty').classList.add('hidden');
+            document.getElementById('insights-charts').classList.remove('hidden');
+
+            renderInsightsHeatmaps(diaries, rangeInfo);
+
+            const stats = { tags: {}, mood: {}, activity: {}, location: {}, time: { morning: 0, afternoon: 0, evening: 0, night: 0 } };
+            let validTagCount = 0;
+
+            filteredDiaries.forEach(d => {
+                if (d.tags) {
+                    d.tags.split(/[,，]/).forEach(t => {
+                        const tag = t.trim();
+                        if (tag) { stats.tags[tag] = (stats.tags[tag] || 0) + 1; validTagCount++; }
+                    });
+                }
+                if (d.mood) stats.mood[d.mood] = (stats.mood[d.mood] || 0) + 1;
+                if (d.activity) stats.activity[d.activity] = (stats.activity[d.activity] || 0) + 1;
+                if (d.location) {
+                    const city = d.location.split(' ')[0];
+                    stats.location[city] = (stats.location[city] || 0) + 1;
+                }
+                const hour = new Date(d.timestamp).getHours();
+                if (hour >= 5 && hour < 12) stats.time.morning++;
+                else if (hour >= 12 && hour < 18) stats.time.afternoon++;
+                else if (hour >= 18 && hour < 22) stats.time.evening++;
+                else stats.time.night++;
+            });
+
+            renderInsightsTagsCloud(stats.tags);
+            renderMoodPieChart(stats.mood, totalEntries);
+            renderActivityMatrix(stats.activity, totalEntries);
+            renderStatBarChart('chart-location', stats.location, Object.values(stats.location).reduce((a,b)=>a+b, 0), 'bg-rose-400', 3);
+
+            const timeChart = document.getElementById('chart-time');
+            const t = stats.time;
+            const pmorning = (t.morning / totalEntries) * 100;
+            const pafternoon = (t.afternoon / totalEntries) * 100;
+            const pevening = (t.evening / totalEntries) * 100;
+            const pnight = (t.night / totalEntries) * 100;
+            
+            timeChart.innerHTML = `
+                <div class="h-full bg-sky-300 transition-all duration-1000" style="width: ${pmorning}%;" title="晨间: ${Math.round(pmorning)}%"></div>
+                <div class="h-full bg-amber-400 transition-all duration-1000" style="width: ${pafternoon}%;" title="午后: ${Math.round(pafternoon)}%"></div>
+                <div class="h-full bg-orange-500 transition-all duration-1000" style="width: ${pevening}%;" title="傍晚: ${Math.round(pevening)}%"></div>
+                <div class="h-full bg-indigo-600 transition-all duration-1000" style="width: ${pnight}%;" title="深夜: ${Math.round(pnight)}%"></div>
+            `;
+            lucide.createIcons();
+        }
+
+        function generateMonthCalendarHeatmap(allDiaries, y, m) {
+            const diaryCounts = {};
+            allDiaries.forEach(d => {
+                const dDate = new Date(d.timestamp);
+                if (dDate.getFullYear() === y && dDate.getMonth() === m) {
+                    diaryCounts[dDate.getDate()] = (diaryCounts[dDate.getDate()] || 0) + 1;
+                }
+            });
+
+            const firstDay = new Date(y, m, 1).getDay();
+            const daysInMonth = new Date(y, m + 1, 0).getDate();
+
+            let html = `<div class="grid grid-cols-7 gap-1.5 w-full max-w-[200px] mx-auto">`;
+            ['日', '一', '二', '三', '四', '五', '六'].forEach(wd => {
+                html += `<div class="text-[10px] text-center font-bold text-slate-400 pb-1">${wd}</div>`;
+            });
+            
+            for (let i = 0; i < firstDay; i++) { html += `<div></div>`; }
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                const count = diaryCounts[day] || 0;
+                let bgClass = 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700';
+                let textClass = 'text-slate-400';
+                
+                if (count === 1) { bgClass = 'bg-blue-200 dark:bg-blue-900/60'; textClass = 'text-blue-700 dark:text-blue-300'; }
+                else if (count === 2) { bgClass = 'bg-blue-300 dark:bg-blue-800'; textClass = 'text-blue-800 dark:text-blue-200'; }
+                else if (count >= 3) { bgClass = 'bg-dayone-blue shadow-sm'; textClass = 'text-white'; }
+                
+                const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                const onClickAttr = count > 0 ? `onclick="setListSpecificDate('${dateStr}'); switchTab('journal'); switchSubView('list');"` : '';
+                
+                html += `<div class="aspect-square flex items-center justify-center rounded-[4px] text-[10px] font-bold transition-all cursor-pointer hover:scale-110 ${bgClass} ${textClass}" title="${y}年${m+1}月${day}日 : ${count} 篇" ${onClickAttr}>${day}</div>`;
+            }
+            html += `</div>`;
+            return html;
+        }
+
+        function generateAdvancedHeatmap(allDiaries, renderStart, renderEnd, blockClass, gapClass = 'gap-1 lg:gap-1.5') {
+            const diaryCounts = {};
+            allDiaries.forEach(d => {
+                const dDate = new Date(d.timestamp);
+                const dateStr = `${dDate.getFullYear()}-${String(dDate.getMonth()+1).padStart(2,'0')}-${String(dDate.getDate()).padStart(2,'0')}`;
+                diaryCounts[dateStr] = (diaryCounts[dateStr] || 0) + 1;
+            });
+
+            const startGridDate = new Date(renderStart);
+            startGridDate.setDate(renderStart.getDate() - renderStart.getDay());
+            const endGridDate = new Date(renderEnd);
+            if (renderEnd.getDay() !== 6) {
+                endGridDate.setDate(renderEnd.getDate() + (6 - renderEnd.getDay()));
+            }
+
+            const heightClasses = blockClass.split(' ').filter(c => c.startsWith('h-') || c.startsWith('sm:h-') || c.startsWith('lg:h-')).join(' ');
+
+            let columnsHtml = '';
+            let current = new Date(startGridDate);
+            let lastPrintedMonth = -1;
+            
+            while (current <= endGridDate) {
+                let wednesday = new Date(current);
+                wednesday.setDate(wednesday.getDate() + 3); 
+                let currentMonth = wednesday.getMonth();
+                
+                let monthText = '';
+                if (currentMonth !== lastPrintedMonth) {
+                    if (wednesday.getDate() <= 7 || (lastPrintedMonth === -1 && wednesday.getDate() <= 21)) {
+                        monthText = `${currentMonth + 1}月`;
+                        lastPrintedMonth = currentMonth;
+                    }
+                }
+
+                columnsHtml += `<div class="flex flex-col ${gapClass} shrink-0 relative group">`;
+                
+                if (monthText) {
+                    columnsHtml += `<div class="h-4 relative w-full"><span class="absolute bottom-1 left-0 text-[10px] text-slate-400 font-bold whitespace-nowrap z-10">${monthText}</span></div>`;
+                } else {
+                    columnsHtml += `<div class="h-4 w-full"></div>`;
+                }
+
+                for (let i = 0; i < 7; i++) {
+                    const isOutOfRange = current < renderStart || current > renderEnd;
+                    const dateStr = `${current.getFullYear()}-${String(current.getMonth()+1).padStart(2,'0')}-${String(current.getDate()).padStart(2,'0')}`;
+                    const count = diaryCounts[dateStr] || 0;
+                    
+                    let bgClass = ''; 
+                    if (!isOutOfRange) {
+                        if (count === 0) bgClass = 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer';
+                        else if (count === 1) bgClass = 'bg-blue-200 dark:bg-blue-900/60 cursor-pointer';
+                        else if (count === 2) bgClass = 'bg-blue-300 dark:bg-blue-800 cursor-pointer';
+                        else if (count === 3) bgClass = 'bg-blue-400 dark:bg-blue-600 cursor-pointer';
+                        else bgClass = 'bg-dayone-blue shadow-sm cursor-pointer';
+                    } else {
+                        bgClass = 'bg-transparent'; 
+                    }
+
+                    const titleAttr = isOutOfRange ? '' : `title="${current.toLocaleDateString('zh-CN')} : ${count} 篇"`;
+                    const onClickAttr = (!isOutOfRange && count > 0) ? `onclick="setListSpecificDate('${dateStr}'); switchTab('journal'); switchSubView('list');"` : '';
+
+                    columnsHtml += `<div class="${blockClass} rounded-[2px] transition-colors ${bgClass}" ${titleAttr} ${onClickAttr}></div>`;
+                    
+                    current.setDate(current.getDate() + 1);
+                }
+                columnsHtml += `</div>`;
+            }
+
+            let yAxisHtml = `<div class="flex flex-col ${gapClass} shrink-0 pr-1">`;
+            yAxisHtml += `<div class="h-4"></div>`; 
+            const yLabels = ['日', '', '二', '', '四', '', '六'];
+            yLabels.forEach(lbl => {
+                yAxisHtml += `<div class="${heightClasses} flex items-center justify-end text-[9px] text-slate-400 font-bold leading-none ${lbl === '' ? 'opacity-0' : ''}">${lbl || '一'}</div>`;
+            });
+            yAxisHtml += `</div>`;
+            
+            return `
+            <div class="flex ${gapClass} w-max pl-1 pr-6 py-1">
+                ${yAxisHtml}
+                ${columnsHtml}
+            </div>`;
+        }
+
+        function renderInsightsHeatmaps(allDiaries, rangeInfo) {
+            let anchorDate = new Date(rangeInfo.endDateObj);
+            if (insightsFilterState.type === 'all') {
+                anchorDate = new Date(); 
+            }
+
+            const y = anchorDate.getFullYear();
+            const m = anchorDate.getMonth();
+            const q = Math.floor(m / 3);
+
+            document.getElementById('heatmap-label-month').innerText = `${y}年${m + 1}月`;
+            document.getElementById('heatmap-container-month').innerHTML = generateMonthCalendarHeatmap(allDiaries, y, m);
+
+            const quarterStart = new Date(y, q * 3, 1);
+            const quarterEnd = new Date(y, q * 3 + 3, 0, 23, 59, 59);
+            document.getElementById('heatmap-label-quarter').innerText = `${y}年 Q${q + 1}`;
+            document.getElementById('heatmap-container-quarter').innerHTML = generateAdvancedHeatmap(allDiaries, quarterStart, quarterEnd, 'w-3 h-3 sm:w-4 sm:h-4', 'gap-1 lg:gap-1.5');
+
+            const yearStart = new Date(y, 0, 1);
+            const yearEnd = new Date(y, 11, 31, 23, 59, 59);
+            
+            let midYearSunday = new Date(y, 6, 1);
+            midYearSunday.setDate(midYearSunday.getDate() - midYearSunday.getDay());
+            let row1End = new Date(midYearSunday);
+            row1End.setDate(row1End.getDate() - 1);
+            row1End.setHours(23, 59, 59);
+
+            const row1Html = generateAdvancedHeatmap(allDiaries, yearStart, row1End, 'w-2 h-2 sm:w-2.5 sm:h-2.5 lg:w-3 lg:h-3', 'gap-[2px] lg:gap-1');
+            const row2Html = generateAdvancedHeatmap(allDiaries, midYearSunday, yearEnd, 'w-2 h-2 sm:w-2.5 sm:h-2.5 lg:w-3 lg:h-3', 'gap-[2px] lg:gap-1');
+
+            document.getElementById('heatmap-label-year').innerText = `${y}年`;
+            document.getElementById('heatmap-container-year').innerHTML = `<div class="flex flex-col gap-2 md:gap-4 w-max">${row1Html}${row2Html}</div>`;
+        }
+
+        function renderInsightsTagsCloud(tagStats) {
+            const container = document.getElementById('insights-tags-cloud');
+            if(Object.keys(tagStats).length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 w-full text-center mt-4">暂无分类标签</p>`; return;
+            }
+            let maxCount = Math.max(...Object.values(tagStats));
+            let html = '';
+            
+            Object.entries(tagStats).sort((a,b)=>b[1]-a[1]).slice(0, 12).forEach(([tag, count]) => {
+                const weight = count / maxCount; 
+                const size = 11 + (weight * 6); 
+                const opacity = 0.6 + (weight * 0.4); 
+                html += `<span class="inline-block px-2.5 py-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-xl transition-all hover:scale-105 cursor-default font-semibold border border-emerald-100 dark:border-emerald-800" style="font-size: ${size}px; opacity: ${opacity}; line-height: 1;" title="${tag}: ${count}篇">${tag}</span>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderMoodPieChart(moodStats, totalValidCount) {
+            const legendContainer = document.getElementById('chart-mood-legend');
+            const pieEl = document.getElementById('chart-mood-pie');
+            
+            const sortedMood = Object.entries(moodStats).sort((a,b)=>b[1]-a[1]).slice(0, 4); 
+            if(sortedMood.length === 0) { pieEl.style.background = 'conic-gradient(#f3f4f6 0% 100%)'; legendContainer.innerHTML=''; return; }
+
+            const colors = ['#f59e0b', '#3b82f6', '#10b981', '#f43f5e'];
+            let gradientStr = [];
+            let currentAngle = 0;
+            let legendHtml = '';
+
+            sortedMood.forEach(([label, count], idx) => {
+                const pct = (count / totalValidCount) * 100;
+                const color = colors[idx % colors.length];
+                gradientStr.push(`${color} ${currentAngle}% ${currentAngle + pct}%`);
+                currentAngle += pct;
+                
+                const emoji = label.split(' ')[0];
+                const text = label.split(' ').length > 1 ? label.substring(label.indexOf(' ')+1) : label;
+                
+                legendHtml += `
+                    <div class="flex items-center gap-2 w-full">
+                        <span class="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style="background-color: ${color};"></span>
+                        <div class="flex-1 min-w-0 flex items-center gap-1">
+                            <span class="text-sm leading-none">${emoji}</span>
+                            <span class="text-[11px] font-bold text-slate-600 dark:text-slate-300 truncate" title="${text}">${text}</span>
+                        </div>
+                        <span class="text-[11px] font-black" style="color: ${color};">${Math.round(pct)}%</span>
+                    </div>`;
+            });
+            if (currentAngle < 100) { gradientStr.push(`#e2e8f0 ${currentAngle}% 100%`); }
+            
+            pieEl.style.background = `conic-gradient(${gradientStr.join(', ')})`;
+            legendContainer.innerHTML = legendHtml;
+        }
+
+        function renderActivityMatrix(actStats, totalValidCount) {
+            const container = document.getElementById('chart-activity-matrix');
+            const sortedAct = Object.entries(actStats).sort((a,b)=>b[1]-a[1]).slice(0, 4); 
+            
+            if(sortedAct.length === 0) { container.innerHTML = `<p class="text-xs text-slate-400">无活动记录</p>`; return; }
+
+            let html = `<div class="grid grid-cols-2 gap-3 h-full">`;
+            sortedAct.forEach(([label, count]) => {
+                const pct = Math.round((count / totalValidCount) * 100);
+                const emoji = label.split(' ')[0];
+                const text = label.split(' ').length > 1 ? label.substring(label.indexOf(' ')+1) : label;
+                
+                html += `
+                    <div class="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-2xl flex flex-col items-center justify-center gap-1 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition cursor-default group border border-slate-100 dark:border-slate-800">
+                        <span class="text-xl group-hover:scale-125 transition-transform" title="${text}">${emoji}</span>
+                        <div class="flex items-baseline gap-1 mt-0.5">
+                            <span class="font-black text-base text-slate-700 dark:text-slate-200 leading-none">${pct}</span><span class="text-[9px] text-slate-400 font-bold">%</span>
+                        </div>
+                    </div>`;
+            });
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        function renderStatBarChart(containerId, dataObj, totalValidCount, colorClass, maxItems = 3) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            const sortedData = Object.entries(dataObj).sort((a,b) => b[1] - a[1]).slice(0, maxItems); 
+            
+            if (sortedData.length === 0 || totalValidCount === 0) {
+                container.innerHTML = `<div class="text-[11px] text-slate-400">暂无坐标</div>`; return;
+            }
+
+            sortedData.forEach(([label, count]) => {
+                const percent = Math.round((count / totalValidCount) * 100);
+                const cleanLabel = label.split(' ').length > 1 ? label.substring(label.indexOf(' ') + 1) : label;
+                const hasEmoji = label.split(' ')[0] && label.split(' ')[0].length < 4 && /\p{Emoji}/u.test(label.split(' ')[0]);
+                const displayName = hasEmoji ? cleanLabel : label;
+
+                container.innerHTML += `
+                    <div class="group">
+                        <div class="flex items-center justify-between text-xs mb-1.5 font-bold">
+                            <span class="text-slate-600 dark:text-slate-300 truncate pr-2"><i data-lucide="map-pin" class="w-3 h-3 inline-block -mt-0.5 mr-1 text-slate-400"></i>${displayName}</span>
+                            <span class="text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition">${percent}%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div class="h-full ${colorClass} rounded-full transition-all duration-1000 ease-out" style="width: ${percent}%;"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        function openDiary(id) {
+            currentDiaryId = id;
+            document.getElementById('editor-pane').classList.remove('hidden');
+            document.getElementById('editor-pane').classList.add('flex');
+
+            const diary = diaries.find(d => d.id === id);
+            if (!diary) return;
+
+            document.getElementById('diary-title').value = diary.title || '';
+            document.getElementById('diary-content').value = diary.content || '';
+            document.getElementById('meta-mood').value = diary.mood || '🙂 平静充实';
+            document.getElementById('meta-weather').value = diary.weather || '☀️ 晴空万里';
+            document.getElementById('meta-activity').value = diary.activity || '💻 沉浸工作';
+            document.getElementById('meta-tags').value = diary.tags || '';
+            document.getElementById('meta-location').value = diary.location || '';
+            document.getElementById('meta-lat').value = diary.lat || '';
+            document.getElementById('meta-lng').value = diary.lng || '';
+
+            const dateObj = new Date(diary.timestamp);
+            document.getElementById('editor-date-badge').innerText = dateObj.toLocaleString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long', hour: '2-digit', minute: '2-digit' });
+            // 同步日期选择器到该日记的日期
+            const dStr = new Date(dateObj.getTime() - dateObj.getTimezoneOffset()*60000).toISOString().split('T')[0];
+            setEditorDatePicker(dStr);
+
+            const coverPreview = document.getElementById('cover-preview-container');
+            const coverImg = document.getElementById('cover-img');
+            if (diary.photo) {
+                coverImg.src = diary.photo; coverPreview.classList.remove('hidden'); document.getElementById('no-photo-placeholder').classList.add('hidden');
+            } else {
+                coverPreview.classList.add('hidden'); coverImg.src = ''; document.getElementById('no-photo-placeholder').classList.remove('hidden');
+            }
+
+            document.getElementById('delete-btn').classList.remove('hidden');
+            document.querySelectorAll('#list-items-container > div').forEach(card => {
+                card.classList.remove('bg-blue-50/50', 'dark:bg-blue-950/20', 'border-dayone-blue/30', 'shadow-sm');
+                card.classList.add('bg-transparent', 'border-slate-100', 'dark:border-dayone-darkBorder');
+            });
+            const activeCard = document.getElementById(`card-${id}`);
+            if (activeCard) {
+                activeCard.classList.remove('bg-transparent', 'border-slate-100', 'dark:border-dayone-darkBorder');
+                activeCard.classList.add('bg-blue-50/50', 'dark:bg-blue-950/20', 'border-dayone-blue/30', 'shadow-sm');
+            }
+        }
+
+        function createNewEntry() {
+            currentDiaryId = 'new-' + Date.now();
+            document.getElementById('editor-pane').classList.remove('hidden');
+            document.getElementById('editor-pane').classList.add('flex');
+
+            document.getElementById('diary-title').value = '';
+            document.getElementById('diary-content').value = '';
+            document.getElementById('meta-mood').value = '🙂 平静充实';
+            document.getElementById('meta-weather').value = '☀️ 晴空万里';
+            document.getElementById('meta-activity').value = '☕ 慢享生活';
+            document.getElementById('meta-tags').value = '';
+            document.getElementById('meta-location').value = '';
+            document.getElementById('meta-lat').value = '';
+            document.getElementById('meta-lng').value = '';
+            
+            document.getElementById('editor-date-badge').innerText = new Date().toLocaleString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long', hour: '2-digit', minute: '2-digit' });
+            // 默认选中今天
+            setEditorDatePicker(getTodayStrDiary());
+            document.getElementById('cover-preview-container').classList.add('hidden');
+            document.getElementById('cover-img').src = '';
+            document.getElementById('no-photo-placeholder').classList.remove('hidden');
+            document.getElementById('delete-btn').classList.add('hidden');
+            
+            document.querySelectorAll('#list-items-container > div').forEach(card => {
+                card.classList.remove('bg-blue-50/50', 'dark:bg-blue-950/20', 'border-dayone-blue/30', 'shadow-sm');
+                card.classList.add('bg-transparent', 'border-slate-100', 'dark:border-dayone-darkBorder');
+            });
+        }
+
+        // 获取今天的 YYYY-MM-DD
+        function getTodayStrDiary() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().split('T')[0]; }
+
+        // 设置日期选择器的值并同步选中日期变量 + 导入按钮文案
+        function setEditorDatePicker(dateStr) {
+            editorSelectedDateStr = dateStr;
+            const picker = document.getElementById('editor-date-picker');
+            if(picker) picker.value = dateStr;
+            updateImportBtnLabel();
+        }
+
+        // 根据选中日期更新"导入任务"按钮文案
+        function updateImportBtnLabel() {
+            const btn = document.getElementById('import-tasks-btn');
+            if(!btn || !editorSelectedDateStr) return;
+            const today = getTodayStrDiary();
+            const d = new Date(editorSelectedDateStr + 'T00:00:00');
+            const label = editorSelectedDateStr === today ? '📋 导入今日任务' : `📋 导入 ${d.getMonth()+1}月${d.getDate()}日 任务`;
+            btn.innerText = label;
+        }
+
+        // 编辑器日期选择器变更事件
+        function onEditorDateChange(dateStr) {
+            if(!dateStr) return;
+            editorSelectedDateStr = dateStr;
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const selectedDate = new Date(y, m-1, d, 10, 0, 0);
+            const today = getTodayStrDiary();
+            const isToday = dateStr === today;
+
+            if(isToday) {
+                // 今天：重置为普通新条目（保留现有内容）
+                currentDiaryId = 'new-' + Date.now();
+                document.getElementById('editor-date-badge').innerText = new Date().toLocaleString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long', hour: '2-digit', minute: '2-digit' });
+            } else {
+                // 历史补录：将自定义日期编码进 currentDiaryId
+                currentDiaryId = 'new-' + Date.now() + '_custom_' + selectedDate.getTime();
+                document.getElementById('editor-date-badge').innerText = selectedDate.toLocaleString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' }) + ' (补录历史)';
+            }
+            updateImportBtnLabel();
+        }
+
+        function triggerPhotoUpload() { document.getElementById('photo-upload').click(); }
+        
+        function handlePhotoUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    // 提升最大高度和宽度分辨率到 1200px，在高分屏幕上能够完美点对点显示
+                    const MAX_WIDTH = 1200; 
+                    const scale = MAX_WIDTH / img.width;
+                    if (img.width > MAX_WIDTH) { 
+                        canvas.width = MAX_WIDTH; 
+                        canvas.height = img.height * scale; 
+                    } else { 
+                        canvas.width = img.width; 
+                        canvas.height = img.height; 
+                    }
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    // 提升画质质量至 0.82，防止细节丢失，保证照片色彩和文字线条无比锐利
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+                    document.getElementById('cover-img').src = compressedDataUrl;
+                    document.getElementById('cover-preview-container').classList.remove('hidden');
+                };
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function removeCoverPhoto() { document.getElementById('cover-preview-container').classList.add('hidden'); document.getElementById('cover-img').src = ''; }
+
+        function injectTemplate(type) {
+            const contentArea = document.getElementById('diary-content');
+            if (contentArea.value.trim() !== '') {
+                if(confirm("选择模板将覆盖当前内容，确定吗？")) contentArea.value = structures[type];
+            } else { contentArea.value = structures[type]; }
+        }
+
+        /* ===== 导入选中日期的任务（来自「任务管理」应用） ===== */
+        function importTodayTasks() {
+            const contentArea = document.getElementById('diary-content');
+            let tState;
+            try { tState = JSON.parse(localStorage.getItem('ticktick_pro_state') || '{}'); }
+            catch(e){ tState = {}; }
+            const tasks = tState.tasks || [];
+            if (!tasks.length) {
+                return showAlert('暂无可导入的任务', '请先在「任务管理」中添加一些任务，再来这里导入吧～');
+            }
+
+            // 使用编辑器选中的日期（与上方日历选择一致），未选时回退到今天
+            const realToday = getTodayStrDiary();
+            const targetDate = editorSelectedDateStr || realToday;
+            const isToday = targetDate === realToday;
+            const targetDateObj = new Date(targetDate + 'T00:00:00');
+            // 任务管理应用用 startDate / endDate 字段
+            // 匹配：startDate === 选中日期，或选中日期落在 [startDate, endDate] 区间内（多日任务）
+            const dayTasks = tasks.filter(t => {
+                if (!t.startDate) return false;
+                if (t.startDate === targetDate) return true;
+                if (t.endDate && t.startDate <= targetDate && t.endDate >= targetDate) return true;
+                return false;
+            });
+
+            // 智能回退：选中日期没有安排任务时，导入所有未完成 + 近期已完成的任务
+            let importList = dayTasks;
+            let mode = 'day'; // 'day' | 'all'
+            if (!dayTasks.length) {
+                const pending = tasks.filter(t => !t.completed);
+                // 取所有未完成 + 选中日期之前7天内已完成的
+                const since = new Date(targetDateObj); since.setDate(since.getDate() - 7);
+                const sinceStr = new Date(since.getTime() - since.getTimezoneOffset()*60000).toISOString().split('T')[0];
+                const recentDone = tasks.filter(t => t.completed && t.startDate && t.startDate >= sinceStr && t.startDate <= targetDate);
+                importList = pending.concat(recentDone);
+                if (!importList.length) {
+                    return showAlert('没有可导入的任务', `「任务管理」中暂无可导入的任务。\n\n共 ${tasks.length} 条任务。\n选中日期：${targetDate}`);
+                }
+                mode = 'all';
+            }
+
+            const done = importList.filter(t => t.completed);
+            const pending = importList.filter(t => !t.completed);
+            const rate = importList.length ? Math.round(done.length / importList.length * 100) : 0;
+
+            // priority sort: high > mid > low > none
+            const pOrder = { high: 0, mid: 1, low: 2 };
+            const sortFn = (a,b) => (pOrder[a.priority] ?? 3) - (pOrder[b.priority] ?? 3);
+
+            const dateStr = targetDateObj.toLocaleDateString('zh-CN', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+            const dayLabel = isToday ? '今日' : (targetDateObj.getMonth()+1 + '月' + targetDateObj.getDate() + '日');
+            let block;
+            if (mode === 'day') {
+                block = `\n📋 ${dayLabel}任务回顾（${dateStr}）\n`;
+                block += `共 ${importList.length} 项 · 完成 ${done.length} · 待办 ${pending.length} · 完成率 ${rate}%\n\n`;
+            } else {
+                block = `\n📋 任务清单（${dateStr}，${dayLabel}未安排具体日程，已汇总所有任务）\n`;
+                block += `共 ${importList.length} 项 · 待办 ${pending.length} · 已完成 ${done.length}\n\n`;
+            }
+
+            if (pending.length) {
+                block += `⏳ 待办（${pending.length}）\n`;
+                [...pending].sort(sortFn).forEach((t,i) => {
+                    block += `   ${i+1}. ${t.title || '未命名'}\n`;
+                });
+                block += '\n';
+            }
+            if (done.length) {
+                block += `✅ 已完成（${done.length}）\n`;
+                [...done].sort(sortFn).forEach((t,i) => {
+                    block += `   ${i+1}. ${t.title || '未命名'}\n`;
+                });
+                block += '\n';
+            }
+
+            // append to existing content (don't overwrite)
+            const cur = contentArea.value.trim();
+            contentArea.value = cur ? cur + '\n\n' + block.trimEnd() : block.trimEnd();
+            contentArea.focus();
+            contentArea.scrollTop = contentArea.scrollHeight;
+
+            // auto-fill title if empty
+            const titleEl = document.getElementById('diary-title');
+            if (!titleEl.value.trim()) {
+                titleEl.value = `${targetDateObj.getMonth()+1}月${targetDateObj.getDate()}日 · 完成了${done.length}件事`;
+            }
+
+            const modeNote = mode === 'day' ? `${dayLabel} ${importList.length} 项` : `全部 ${importList.length} 项任务（${dayLabel}未安排日程，已汇总）`;
+            showAlert('导入成功 ✓', `已导入${modeNote}（完成 ${done.length} / 待办 ${pending.length}），已追加到日记内容中。`);
+        }
+
+        /* ===== 导入当天碎碎念（来自「垃圾桶」应用） ===== */
+        function importTodayTrashThoughts() {
+            const contentArea = document.getElementById('diary-content');
+            let tState;
+            try { tState = JSON.parse(localStorage.getItem('trash_pro_state') || '{}'); }
+            catch(e){ tState = {}; }
+            const thoughts = tState.thoughts || [];
+            if (!thoughts.length) {
+                return showAlert('暂无可导入的碎碎念', '请先在「垃圾桶」模块里记录一些小念头，再来这里导入吧～');
+            }
+
+            // 与上方日历选择一致，未选时回退到今天
+            const realToday = getTodayStrDiary();
+            const targetDate = editorSelectedDateStr || realToday;
+            const targetDateObj = new Date(targetDate + 'T00:00:00');
+            const targetStart = targetDateObj.getTime();
+            const targetEnd = targetStart + 86400000; // 24h
+
+            // 取目标日期当天的念头
+            const dayThoughts = thoughts.filter(t => t.ts >= targetStart && t.ts < targetEnd);
+
+            // 智能回退：当天没记录时，导入最近 3 天的所有念头
+            let importList = dayThoughts;
+            let mode = 'day';
+            if (!dayThoughts.length) {
+                const since = new Date(targetDateObj); since.setDate(since.getDate() - 3);
+                importList = thoughts.filter(t => t.ts >= since.getTime() && t.ts < targetEnd);
+                if (!importList.length) {
+                    return showAlert('没有可导入的碎碎念', `「垃圾桶」中暂无${targetDate}的记录。\n\n共 ${thoughts.length} 条，最近一条: ${new Date(thoughts[0].ts).toLocaleDateString('zh-CN')}`);
+                }
+                mode = 'recent';
+            }
+
+            const catLabel = { work: '💼 工作', life: '🌿 生活', study: '📚 学习', world: '🌍 小世界' };
+            const dateStr = targetDateObj.toLocaleDateString('zh-CN', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+
+            // 按分类分组
+            const byCat = { work: [], life: [], study: [], world: [] };
+            importList.forEach(t => { if(byCat[t.cat]) byCat[t.cat].push(t); });
+
+            let block = `\n🗑️ 今日碎碎念（${dateStr}）\n`;
+            block += `共 ${importList.length} 条小念头\n\n`;
+
+            ['work','life','study','world'].forEach(cat => {
+                if(byCat[cat].length){
+                    block += `${catLabel[cat]}（${byCat[cat].length}）\n`;
+                    byCat[cat].forEach((t,i) => {
+                        const time = new Date(t.ts).toLocaleTimeString('zh-CN', { hour:'2-digit', minute:'2-digit' });
+                        block += `   ${i+1}. ${t.text || ''}  (${time})\n`;
+                    });
+                    block += '\n';
+                }
+            });
+
+            // 追加到内容末尾（不覆盖）
+            const cur = contentArea.value.trim();
+            contentArea.value = cur ? cur + '\n\n' + block.trimEnd() : block.trimEnd();
+            contentArea.focus();
+            contentArea.scrollTop = contentArea.scrollHeight;
+
+            // 自动填充标题
+            const titleEl = document.getElementById('diary-title');
+            if (!titleEl.value.trim()) {
+                titleEl.value = `${targetDateObj.getMonth()+1}月${targetDateObj.getDate()}日 · 记录了${importList.length}个念头`;
+            }
+
+            const note = mode === 'day' ? `今日 ${importList.length} 条` : `近3天 ${importList.length} 条（今日为空）`;
+            showAlert('导入成功 ✓', `已导入${note}碎碎念，已追加到日记内容中。`);
+        }
+
+        function saveCurrentEntry() {
+            const title = document.getElementById('diary-title').value.trim();
+            const content = document.getElementById('diary-content').value.trim();
+            if (!title && !content) return showAlert('保存失败', '写日记至少要有内容！');
+
+            const mood = document.getElementById('meta-mood').value;
+            const weather = document.getElementById('meta-weather').value;
+            const activity = document.getElementById('meta-activity').value;
+            const tags = document.getElementById('meta-tags').value.trim();
+            const photo = document.getElementById('cover-img').src || '';
+            
+            const location = document.getElementById('meta-location').value.trim();
+            const latVal = document.getElementById('meta-lat').value;
+            const lngVal = document.getElementById('meta-lng').value;
+            const lat = latVal ? parseFloat(latVal) : null;
+            const lng = lngVal ? parseFloat(lngVal) : null;
+
+            const isNew = currentDiaryId.startsWith('new-');
+            let targetId = isNew ? 'd-' + Date.now() : currentDiaryId;
+            let timestamp = Date.now();
+
+            if (isNew && currentDiaryId.includes('_custom_')) {
+                timestamp = parseInt(currentDiaryId.split('_custom_')[1]); targetId = 'd-' + timestamp;
+            } else if (!isNew) {
+                const matched = diaries.find(d => d.id === currentDiaryId);
+                if (matched) {
+                    timestamp = matched.timestamp;
+                    // 如果用户通过日期选择器修改了已有日记的日期，更新时间戳（保留原时分）
+                    if (editorSelectedDateStr) {
+                        const orig = new Date(matched.timestamp);
+                        const origStr = new Date(orig.getTime() - orig.getTimezoneOffset()*60000).toISOString().split('T')[0];
+                        if (editorSelectedDateStr !== origStr) {
+                            const [ny, nm, nd] = editorSelectedDateStr.split('-').map(Number);
+                            timestamp = new Date(ny, nm-1, nd, orig.getHours(), orig.getMinutes(), orig.getSeconds()).getTime();
+                        }
+                    }
+                }
+            }
+
+            const updatedDiary = { id: targetId, title, content, mood, weather, activity, tags, photo, location, lat, lng, timestamp };
+
+            if (isNew) diaries.unshift(updatedDiary);
+            else { const idx = diaries.findIndex(d => d.id === currentDiaryId); if (idx !== -1) diaries[idx] = updatedDiary; }
+
+            try {
+                saveDiariesToLocal();
+                currentDiaryId = targetId;
+                loadDiariesFromStorage();
+                
+                if(activeSubView === 'map') renderMapView();
+                if(activeTab === 'tags') renderTagsPage(); 
+                if(activeTab === 'insights') renderInsightsPage();
+
+                showAlert('保存成功', '日记已被封存于本地。');
+                // 保存后回到空白编辑器，并自动切回今天，方便继续记录
+                createNewEntry();
+                setEditorDatePicker(getTodayStrDiary());
+                document.getElementById('diary-title').focus();
+            } catch(e) { showAlert('保存失败', '可能相片过大导致浏览器限额溢出。'); }
+        }
+
+        function deleteCurrentEntry() {
+            if(confirm("确定永久销毁吗？无云端可找回。")) {
+                diaries = diaries.filter(d => d.id !== currentDiaryId);
+                saveDiariesToLocal();
+                loadDiariesFromStorage();
+                
+                if(activeSubView === 'map') renderMapView();
+                if(activeTab === 'tags') renderTagsPage(); 
+                if(activeTab === 'insights') renderInsightsPage();
+                
+                // 默认会通过 loadDiariesFromStorage 回到今天的日记
+            }
+        }
+
+        function closeEditorOnMobile() { document.getElementById('editor-pane').classList.remove('flex'); document.getElementById('editor-pane').classList.add('hidden'); }
+
+        function exportData() {
+            if (!diaries || diaries.length === 0) {
+                showAlert('导出失败', '当前没有可以导出的日记数据。');
+                return;
+            }
+            
+            const dataStr = JSON.stringify(diaries, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            const date = new Date().toISOString().split('T')[0];
+            a.download = `闪念日记备份_${date}.json`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showAlert('导出成功', '您的日记数据已成功导出为 JSON 备份文件。');
+        }
+
+        function clearAllData() {
+            if (confirm("⚠️ 警告：此操作将永久删除所有设备上的日记数据，且不可恢复！\n\n您确定要彻底清空吗？")) {
+                // 清空内存数据
+                diaries = [];
+                // 将空数组存入 localStorage，防止重新加载时生成 Mock 数据
+                saveDiariesToLocal();
+                
+                location.reload();
+            }
+        }
+
+        function triggerImport() {
+            document.getElementById('data-import-upload').click();
+        }
+
+        function handleDataImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (!Array.isArray(importedData)) throw new Error("文件内容必须是标准的日记数组格式");
+
+                    const isValid = importedData.every(item => item.id && item.timestamp !== undefined);
+                    if (!isValid) throw new Error("日记数据缺少关键的标识字段 (id, timestamp)");
+
+                    if (confirm(`成功读取包含 ${importedData.length} 条记录的备份文件。\n\n是否确认将这些记录合并到当前设备？\n(相同 ID 的记录将被自动覆盖)`)) {
+                        
+                        const existingMap = new Map(diaries.map(d => [d.id, d]));
+                        importedData.forEach(d => {
+                            existingMap.set(d.id, d);
+                        });
+
+                        diaries = Array.from(existingMap.values());
+                        diaries.sort((a, b) => b.timestamp - a.timestamp);
+                        
+                        saveDiariesToLocal();
+                        
+                        loadDiariesFromStorage();
+                        if (activeSubView === 'map') renderMapView();
+                        if (activeTab === 'tags') renderTagsPage(); 
+                        if (activeTab === 'insights') renderInsightsPage();
+
+                        showAlert('导入成功', `已成功读取并合并 ${importedData.length} 条历史记录！`);
+                    }
+                } catch (error) {
+                    showAlert('导入失败', '文件解析错误：' + error.message);
+                }
+                
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        // Notify parent dashboard to refresh after data changes
+        function _notifyParentDash() {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'dashboard-refresh', key: 'dayone_premium_diaries' }, '*');
+            }
+        }
+
+        // 轻量刷新：只重新加载 localStorage 数据 + 重新渲染列表/日历，不触碰编辑器（避免切模块回来时重新打开旧日记）
+        function refreshDiaryDataOnly() {
+            var saved = localStorage.getItem('dayone_premium_diaries');
+            if (!saved) return;
+            _lastDiaryStr = saved;
+            _syncReloading = true;
+            try {
+                diaries = JSON.parse(saved);
+                diaries.sort((a, b) => b.timestamp - a.timestamp);
+                renderDiariesList();
+                renderCalendarView();
+                renderOnThisDayView();
+                calculateStreak();
+                if (typeof activeSubView !== 'undefined' && activeSubView === 'map') renderMapView();
+            } catch(e) { console.error('[diary] 轻量刷新失败', e); }
+            _syncReloading = false;
+        }
+
+        // 云同步：当外壳拉取云端数据写入 localStorage 时，只刷新列表，不动编辑器
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'dayone_premium_diaries') {
+                refreshDiaryDataOnly();
+            }
+        });
+        window.addEventListener('message', (e) => {
+            if (e.data && e.data.type === 'pb-sync-update') {
+                refreshDiaryDataOnly();
+            }
+        });
+
+    </script>
+</body>
+</html>

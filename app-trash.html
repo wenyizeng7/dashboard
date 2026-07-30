@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<title>垃圾桶</title>
+<link rel="stylesheet" href="tailwind.css">
+<link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
+<style>
+  body { -webkit-tap-highlight-color: transparent; }
+  .fade-in { animation: fade .35s ease; }
+  @keyframes fade { from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+  .toast { animation: toastSlide .3s ease; }
+  @keyframes toastSlide { from{opacity:0; transform:translateY(-20px);} to{opacity:1; transform:translateY(0);} }
+  .cat-pill { transition: all .15s ease; }
+  .cat-pill.active { background:#6b8e5a; color:#fff; border-color:#6b8e5a; }
+  .cat-pill:not(.active):hover { background:#f1f5f9; }
+  .thought-item { animation: slideIn .25s ease; }
+  @keyframes slideIn { from{opacity:0; transform:translateY(-4px);} to{opacity:1; transform:translateY(0);} }
+  textarea { resize: none; }
+  .no-scrollbar::-webkit-scrollbar { display:none; }
+  .no-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
+</style>
+</head>
+<body class="bg-[#f7f4ed] text-slate-800 min-h-screen">
+
+<!-- Header -->
+<header class="sticky top-0 z-30 bg-[#f7f4ed]/95 backdrop-blur-md px-4 py-4 border-b border-[#e8e1cf]/50">
+  <div class="max-w-2xl mx-auto flex items-center gap-3">
+    <span class="text-2xl">🗑️</span>
+    <div>
+      <h1 class="text-xl font-extrabold text-slate-800 leading-tight">垃圾桶</h1>
+      <p class="text-[12px] text-slate-500">记录那些一闪而过的小念头</p>
+    </div>
+  </div>
+</header>
+
+<main class="px-4 pt-4 pb-20 max-w-2xl mx-auto space-y-4">
+
+  <!-- 记录小念头 -->
+  <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 fade-in">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="text-base">📝</span>
+      <h2 class="font-bold text-sm text-slate-700">记录小念头</h2>
+    </div>
+
+    <!-- 分类选择 -->
+    <div class="flex flex-wrap gap-2 mb-3" id="cat-pills">
+      <button data-cat="work" class="cat-pill px-3 py-1.5 rounded-full text-xs font-bold bg-white border border-slate-200 text-slate-600 flex items-center gap-1">
+        💼 <span>工作</span>
+      </button>
+      <button data-cat="life" class="cat-pill px-3 py-1.5 rounded-full text-xs font-bold bg-white border border-slate-200 text-slate-600 flex items-center gap-1">
+        🌿 <span>生活</span>
+      </button>
+      <button data-cat="study" class="cat-pill px-3 py-1.5 rounded-full text-xs font-bold bg-white border border-slate-200 text-slate-600 flex items-center gap-1">
+        📚 <span>学习</span>
+      </button>
+      <button data-cat="world" class="cat-pill px-3 py-1.5 rounded-full text-xs font-bold bg-white border border-slate-200 text-slate-600 flex items-center gap-1">
+        🌍 <span>小世界</span>
+      </button>
+    </div>
+
+    <textarea id="thought-input" rows="3" placeholder="把此刻的念头写下来..." class="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm outline-none focus:border-[#6b8e5a] focus:bg-white transition text-slate-700"></textarea>
+
+    <button id="throw-btn" class="mt-3 w-full py-3 rounded-xl text-sm font-bold text-white transition shadow-sm flex items-center justify-center gap-2" style="background:#6b8e5a">
+      丢进垃圾桶 🗑️
+    </button>
+  </section>
+
+  <!-- 所有记录 -->
+  <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 fade-in">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        <span class="text-base">📋</span>
+        <h2 class="font-bold text-sm text-slate-700">所有记录</h2>
+      </div>
+      <span id="record-count" class="text-[11px] text-slate-400 font-semibold bg-slate-100 px-2 py-0.5 rounded-full">0 条</span>
+    </div>
+
+    <!-- 过滤切换 -->
+    <div class="flex gap-1 bg-slate-100 rounded-xl p-1 mb-3" id="mode-toggle">
+      <button data-mode="category" class="mode-btn flex-1 py-1.5 rounded-lg text-xs font-bold bg-white text-slate-700 shadow-sm transition">按分类</button>
+      <button data-mode="time" class="mode-btn flex-1 py-1.5 rounded-lg text-xs font-bold text-slate-500 transition">按时间</button>
+    </div>
+
+    <!-- 分类过滤（默认显示） -->
+    <div id="cat-filter" class="flex flex-wrap gap-1.5 mb-3">
+      <button data-cat="all" class="cat-filter-btn px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-700 text-white">全部</button>
+      <button data-cat="work" class="cat-filter-btn px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">💼 工作</button>
+      <button data-cat="life" class="cat-filter-btn px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">🌿 生活</button>
+      <button data-cat="study" class="cat-filter-btn px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">📚 学习</button>
+      <button data-cat="world" class="cat-filter-btn px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">🌍 小世界</button>
+    </div>
+
+    <!-- 时间过滤（默认隐藏） -->
+    <div id="time-filter" class="hidden flex-wrap gap-1.5 mb-3">
+      <button data-range="today" class="time-filter-btn px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-700 text-white">今天</button>
+      <button data-range="week" class="time-filter-btn px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">这周</button>
+      <button data-range="month" class="time-filter-btn px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">这个月</button>
+      <button data-range="quarter" class="time-filter-btn px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">季度</button>
+      <button data-range="year" class="time-filter-btn px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white border border-slate-200 text-slate-600">年</button>
+    </div>
+
+    <!-- 记录列表 -->
+    <div id="thought-list" class="space-y-2"></div>
+  </section>
+
+</main>
+
+<!-- Toast -->
+<div id="toast" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-lg toast"></div>
+
+<script>
+const STORAGE_KEY = 'trash_pro_state';
+
+const CATS = {
+  work:  { label: '工作',   icon: '💼', bg: 'bg-amber-50',  text: 'text-amber-600',  border: 'border-amber-200' },
+  life:  { label: '生活',   icon: '🌿', bg: 'bg-emerald-50',text: 'text-emerald-600',border: 'border-emerald-200' },
+  study: { label: '学习',   icon: '📚', bg: 'bg-sky-50',    text: 'text-sky-600',    border: 'border-sky-200' },
+  world: { label: '小世界', icon: '🌍', bg: 'bg-blue-50',   text: 'text-blue-600',   border: 'border-blue-200' }
+};
+
+let state = { thoughts: [], currentCat: 'work', filterMode: 'category', currentCatFilter: 'all', currentTimeFilter: 'today' };
+
+/* ============ Helpers ============ */
+function todayStr(){
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().split('T')[0];
+}
+function loadState(){
+  try{ const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); return { thoughts: s.thoughts || [], currentCat: s.currentCat || 'work', filterMode: state.filterMode, currentCatFilter: state.currentCatFilter, currentTimeFilter: state.currentTimeFilter }; }
+  catch(e){ return { thoughts: [] }; }
+}
+function saveState(){
+  const toSave = { thoughts: state.thoughts, currentCat: state.currentCat };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+  // Notify dashboard
+  try { window.parent && window.parent.postMessage && window.parent.postMessage({ type: 'dashboard-refresh' }, '*'); } catch(e){}
+}
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.add('hidden'), 1800);
+}
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+/* ============ Category pill handlers ============ */
+function setCategory(cat){
+  state.currentCat = cat;
+  document.querySelectorAll('#cat-pills .cat-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.cat === cat);
+  });
+  saveState();
+}
+function setFilterMode(mode){
+  state.filterMode = mode;
+  document.querySelectorAll('#mode-toggle .mode-btn').forEach(btn => {
+    if(btn.dataset.mode === mode){
+      btn.classList.add('bg-white','text-slate-700','shadow-sm');
+      btn.classList.remove('text-slate-500');
+    } else {
+      btn.classList.remove('bg-white','text-slate-700','shadow-sm');
+      btn.classList.add('text-slate-500');
+    }
+  });
+  document.getElementById('cat-filter').classList.toggle('hidden', mode !== 'category');
+  document.getElementById('time-filter').classList.toggle('hidden', mode !== 'time');
+  renderList();
+}
+function setCatFilter(cat){
+  state.currentCatFilter = cat;
+  document.querySelectorAll('#cat-filter .cat-filter-btn').forEach(btn => {
+    const isActive = btn.dataset.cat === cat;
+    if(isActive){
+      btn.classList.add('bg-slate-700','text-white');
+      btn.classList.remove('bg-white','text-slate-600','border','border-slate-200');
+    } else {
+      btn.classList.remove('bg-slate-700','text-white');
+      btn.classList.add('bg-white','text-slate-600','border','border-slate-200');
+    }
+  });
+  renderList();
+}
+function setTimeFilter(range){
+  state.currentTimeFilter = range;
+  document.querySelectorAll('#time-filter .time-filter-btn').forEach(btn => {
+    const isActive = btn.dataset.range === range;
+    if(isActive){
+      btn.classList.add('bg-slate-700','text-white');
+      btn.classList.remove('bg-white','text-slate-600','border','border-slate-200');
+    } else {
+      btn.classList.remove('bg-slate-700','text-white');
+      btn.classList.add('bg-white','text-slate-600','border','border-slate-200');
+    }
+  });
+  renderList();
+}
+
+/* ============ Date range helpers ============ */
+function getDateRangeStart(range){
+  const now = new Date();
+  if(range === 'today'){
+    const d = new Date(now); d.setHours(0,0,0,0); return d;
+  }
+  if(range === 'week'){
+    const dayIdx = (now.getDay() + 6) % 7; // 0=Mon
+    const d = new Date(now); d.setHours(0,0,0,0); d.setDate(now.getDate() - dayIdx); return d;
+  }
+  if(range === 'month'){
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  if(range === 'quarter'){
+    const qStart = Math.floor(now.getMonth() / 3) * 3;
+    return new Date(now.getFullYear(), qStart, 1);
+  }
+  if(range === 'year'){
+    return new Date(now.getFullYear(), 0, 1);
+  }
+  return new Date(0);
+}
+function getDateRangeEnd(range){
+  const now = new Date();
+  if(range === 'today'){
+    const d = new Date(now); d.setHours(23,59,59,999); return d;
+  }
+  if(range === 'week'){
+    const start = getDateRangeStart('week');
+    const d = new Date(start); d.setDate(start.getDate() + 6); d.setHours(23,59,59,999); return d;
+  }
+  if(range === 'month'){
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  }
+  if(range === 'quarter'){
+    const qStart = Math.floor(now.getMonth() / 3) * 3;
+    return new Date(now.getFullYear(), qStart + 3, 0, 23, 59, 59, 999);
+  }
+  if(range === 'year'){
+    return new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+  }
+  return new Date();
+}
+
+/* ============ Add / Delete ============ */
+function addThought(){
+  const input = document.getElementById('thought-input');
+  const text = input.value.trim();
+  if(!text){ showToast('写点什么再丢吧～'); return; }
+  const item = {
+    id: uid(),
+    text: text,
+    cat: state.currentCat,
+    ts: Date.now()
+  };
+  state.thoughts.unshift(item);
+  saveState();
+  input.value = '';
+  renderList();
+  showToast('已丢进垃圾桶 🗑️');
+}
+function deleteThought(id){
+  state.thoughts = state.thoughts.filter(t => t.id !== id);
+  saveState();
+  renderList();
+  showToast('已清除');
+}
+
+/* ============ Render ============ */
+function getFilteredThoughts(){
+  let list = state.thoughts.slice();
+  if(state.filterMode === 'category'){
+    if(state.currentCatFilter !== 'all'){
+      list = list.filter(t => t.cat === state.currentCatFilter);
+    }
+  } else {
+    const start = getDateRangeStart(state.currentTimeFilter);
+    const end = getDateRangeEnd(state.currentTimeFilter);
+    list = list.filter(t => t.ts >= start.getTime() && t.ts <= end.getTime());
+  }
+  return list;
+}
+
+function renderList(){
+  const list = getFilteredThoughts();
+  const container = document.getElementById('thought-list');
+  document.getElementById('record-count').textContent = list.length + ' 条';
+
+  if(list.length === 0){
+    container.innerHTML = '<div class="text-center py-10 text-slate-300 text-sm">还没有记录，丢一个进去试试？</div>';
+    return;
+  }
+
+  container.innerHTML = list.map(t => {
+    const c = CATS[t.cat] || CATS.life;
+    const dt = new Date(t.ts);
+    const dateStr = dt.toISOString().slice(0,10);
+    return `
+      <div class="thought-item flex items-start gap-2 py-2.5 px-2 rounded-lg hover:bg-slate-50 transition border-b border-slate-50 last:border-0">
+        <span class="text-sm mt-0.5 shrink-0">${c.icon}</span>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm text-slate-700 leading-relaxed break-words">${escapeHtml(t.text)}</div>
+          <div class="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400 font-semibold">
+            <span class="inline-flex items-center gap-0.5">${c.icon} ${c.label}</span>
+            <span class="text-slate-300">·</span>
+            <span>${dateStr}</span>
+          </div>
+        </div>
+        <button onclick="deleteThought('${t.id}')" class="text-slate-300 hover:text-rose-500 transition shrink-0 w-6 h-6 flex items-center justify-center" title="删除">
+          <i class="fas fa-times text-xs"></i>
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ============ Init ============ */
+function init(){
+  state = loadState();
+  // Bind category pills
+  document.querySelectorAll('#cat-pills .cat-pill').forEach(btn => {
+    btn.addEventListener('click', () => setCategory(btn.dataset.cat));
+  });
+  setCategory(state.currentCat);
+  // Bind mode toggle
+  document.querySelectorAll('#mode-toggle .mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => setFilterMode(btn.dataset.mode));
+  });
+  setFilterMode(state.filterMode);
+  // Bind cat filter
+  document.querySelectorAll('#cat-filter .cat-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => setCatFilter(btn.dataset.cat));
+  });
+  setCatFilter(state.currentCatFilter);
+  // Bind time filter
+  document.querySelectorAll('#time-filter .time-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => setTimeFilter(btn.dataset.range));
+  });
+  setTimeFilter(state.currentTimeFilter);
+  // Bind throw button
+  document.getElementById('throw-btn').addEventListener('click', addThought);
+  // Bind Ctrl+Enter
+  document.getElementById('thought-input').addEventListener('keydown', (e) => {
+    if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); addThought(); }
+  });
+  renderList();
+
+  // ===== 云同步：监听父页面推送的 pb-sync-update 消息 =====
+  // 当云端拉到新数据时，父页面会广播此消息，刷新本地 UI
+  window.addEventListener('message', (e) => {
+    if(e.data && (e.data.type === 'pb-sync-update' || e.data.type === 'refresh-data')){
+      // 重新从 localStorage 加载（不覆盖 currentCat/filterMode 等 UI 状态）
+      var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      if(saved.thoughts){ state.thoughts = saved.thoughts; }
+      if(saved.currentCat){ state.currentCat = saved.currentCat; }
+      renderList();
+    }
+  });
+
+  // ===== 跨标签页同步：监听 storage 事件 =====
+  // 同一浏览器打开两个标签页时，一个标签页的修改会反映到另一个
+  window.addEventListener('storage', (e) => {
+    if(e.key === STORAGE_KEY){
+      var saved = JSON.parse(e.newValue || '{}');
+      if(saved.thoughts){
+        state.thoughts = saved.thoughts;
+        renderList();
+      }
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>归物 - 物品资产追踪</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="归物">
+    <meta name="theme-color" content="#0ea5e9">
+    <link rel="apple-touch-icon" href="icon-180.png">
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="tailwind.css">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap');
+
+        :root {
+            --bg-body: #ffffff;
+            --text-main: #1c1c1e;
+            --accent: #0ea5e9;
+            --accent-light: #e0f2fe;
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            --topbar-h: 44px;
+            --tabbar-h: 54px;
+        }
+
+        html, body { height: 100%; overscroll-behavior: none; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f5f5f7;
+            color: var(--text-main);
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .view-section { display: none; height: 100%; width: 100%; flex-direction: column; }
+
+        /* Top bar */
+        .mobile-topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 45;
+            height: calc(var(--topbar-h) + var(--safe-top));
+            padding-top: var(--safe-top);
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border-bottom: 0.5px solid #e5e7eb;
+            display: flex; align-items: center; justify-content: space-between;
+            padding-left: 8px; padding-right: 8px;
+        }
+        .mobile-topbar h1 { font-size: 17px; font-weight: 700; color: #1c1c1e; text-align: center; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .mobile-main-wrap {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            padding-top: calc(var(--topbar-h) + var(--safe-top));
+            padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom));
+            overflow: hidden;
+        }
+        .mobile-main-wrap > #main-content-area { height: 100%; overflow-y: auto; overflow-x: hidden; }
+
+        .mobile-tabbar {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 45;
+            height: calc(var(--tabbar-h) + var(--safe-bottom));
+            padding-bottom: var(--safe-bottom);
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border-top: 0.5px solid #e5e7eb;
+            display: flex; align-items: stretch;
+        }
+        .tab-btn {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 2px; color: #9ca3af; font-size: 10px; font-weight: 500;
+            transition: color 0.15s; -webkit-tap-highlight-color: transparent;
+        }
+        .tab-btn i { font-size: 18px; }
+        .tab-btn.active { color: var(--accent); }
+
+        .fade-in { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity:0; transform: translateY(6px);} to {opacity:1; transform:none;} }
+
+        /* Modal */
+        .modal-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); display: none; }
+        .modal-overlay.show { display: flex; justify-content: center; align-items: flex-end; }
+        .modal-sheet { background: #fff; width: 100%; max-width: 560px; max-height: 94vh; border-radius: 18px 18px 0 0; overflow-y: auto; animation: slideUp 0.28s ease; }
+        @keyframes slideUp { from { transform: translateY(100%);} to { transform: translateY(0);} }
+
+        /* Switch */
+        .sw { width: 44px; height: 26px; border-radius: 99px; background: #e5e7eb; position: relative; transition: background 0.2s; cursor: pointer; flex-shrink:0; }
+        .sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; background: #fff; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        .sw.on { background: var(--accent); }
+        .sw.on::after { transform: translateX(18px); }
+
+        /* Asset card */
+        .asset-card { transition: transform 0.15s, box-shadow 0.15s; }
+        .asset-card:active { transform: scale(0.985); }
+
+        /* Trend chart */
+        .trend-bar { transition: height 0.5s ease; }
+
+        input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; }
+
+        .icon-cell { transition: all 0.12s; }
+        .icon-cell.selected { background: var(--accent); color: #fff; transform: scale(1.1); }
+
+        /* Refined mobile asset UI */
+        body { background: #0b0d12; color: #f8fafc; }
+        .mobile-topbar { background: rgba(11,13,18,0.94); border-bottom-color: rgba(255,255,255,0.08); }
+        .mobile-topbar h1 { color: #f8fafc; }
+        .mobile-tabbar { background: rgba(22,24,30,0.96); border-top-color: rgba(255,255,255,0.08); }
+        .tab-btn { color: #7b7f89; }
+        .tab-btn.active { color: #1598ff; }
+        .asset-summary { background: linear-gradient(135deg,#087ff5 0%,#11a9ee 100%); border-radius: 26px; padding: 20px 18px 18px; box-shadow: 0 12px 28px rgba(0,137,255,0.22); }
+        .asset-summary-grid { display: grid; grid-template-columns: minmax(0,1fr) 1px minmax(0,1fr); gap: 12px; margin-top: 12px; align-items:center; }
+        .asset-summary-cell { min-width: 0; text-align: center; }
+        .asset-summary-label { font-size: 13px; color: rgba(255,255,255,.82); margin-bottom: 2px; }
+        .asset-summary-value { font-size: clamp(28px, 8vw, 42px); line-height: 1; font-weight: 900; letter-spacing: -1.5px; white-space: nowrap; }
+        .asset-summary-divider { width: 1px; height: 52px; background: rgba(255,255,255,.28); align-self: center; }
+        .asset-summary-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:16px; padding-top:12px; border-top:1px solid rgba(255,255,255,.2); }
+        .asset-summary-foot .daily-cost { font-size: 24px; line-height:1; font-weight: 900; white-space: nowrap; }
+        .asset-summary-foot .daily-label { font-size: 11px; color: rgba(255,255,255,.72); }
+        .asset-summary-counts { display:flex; gap:14px; text-align:center; font-size:11px; color:rgba(255,255,255,.7); }
+        .asset-summary-counts strong { display:block; color:#fff; font-size:18px; line-height:1.1; }
+        .asset-filter-row { display:flex; align-items:center; gap:8px; margin-top:14px; }
+        .asset-filter-row #filter-tabs { flex:1; margin-top:0; }
+        .asset-card { background: linear-gradient(135deg,#21b982 0%,#31c993 100%); border-radius: 22px; padding: 14px 15px; color:#fff; box-shadow: 0 8px 18px rgba(24,190,130,.16); }
+        .asset-card .asset-name { color:#fff; font-size:17px; font-weight:800; }
+        .asset-card .asset-meta { color:rgba(255,255,255,.82); font-size:12px; }
+        .asset-card .asset-cost { color:rgba(255,255,255,.9); font-size:14px; }
+        .asset-card .asset-daily { color:#fff; font-size:13px; font-weight:700; }
+        .asset-card .asset-days { margin-left:auto; text-align:right; flex-shrink:0; }
+        .asset-card .asset-days strong { display:block; font-size:30px; line-height:1; font-weight:900; letter-spacing:-1px; }
+        .asset-card .asset-days span { font-size:13px; color:rgba(255,255,255,.78); }
+        .asset-card .asset-icon { width:42px; height:42px; border-radius:14px; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0; }
+        .asset-card .asset-photo { width:42px; height:42px; border-radius:14px; overflow:hidden; flex-shrink:0; }
+        .asset-card .asset-photo img { width:100%; height:100%; object-fit:cover; }
+        .asset-section-label { color:#8c919d !important; }
+        .asset-sort { color:#b9bec8 !important; background:#1d2027 !important; }
+        .stats-panel { background:#1b1d22; border-radius:24px; padding:16px; box-shadow:0 8px 22px rgba(0,0,0,.22); }
+        .stats-panel-title { color:#f7f7f8; font-size:20px; font-weight:800; }
+        .stats-metric { background:#2a2c31; border-radius:20px; padding:15px 13px; min-height:94px; }
+        .stats-metric-label { color:#9b9da5; font-size:13px; }
+        .stats-metric-value { color:#f8f8fa; font-size:clamp(27px,7vw,38px); line-height:1.05; font-weight:900; white-space:nowrap; letter-spacing:-1px; }
+        .stats-metric-count { color:#f8f8fa; font-size:34px; font-weight:900; line-height:1; }
+        .stats-panel .text-gray-400 { color:#9b9da5 !important; }
+        .stats-panel .text-gray-700, .stats-panel .text-gray-800 { color:#f8f8fa !important; }
+        .stats-panel .border-gray-100 { border-color:rgba(255,255,255,.08) !important; }
+        .stats-chart { background:#1b1d22; }
+        .ast-toast { position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%) translateY(20px); background: rgba(15,23,42,0.92); color:#fff; padding: 10px 18px; border-radius: 12px; font-size: 12px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,0.25); z-index: 9999; opacity: 0; transition: all 0.25s ease; pointer-events: none; max-width: 86vw; text-align: center; }
+        .ast-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .ast-toast.err { background: rgba(220,38,38,0.95); }
+    </style>
+<body>
+
+<!-- Toast -->
+<div id="ast-toast" class="ast-toast"></div>
+
+<!-- Top bar -->
+<div class="mobile-topbar">
+    <button onclick="app.openMenu()" class="w-9 h-9 flex items-center justify-center text-gray-500 rounded-lg hover:bg-gray-100"><i class="fas fa-bars"></i></button>
+    <h1 id="topbar-title">归物</h1>
+    <button onclick="app.openAssetModal()" class="w-9 h-9 flex items-center justify-center text-white rounded-lg" style="background:var(--accent)"><i class="fas fa-plus text-sm"></i></button>
+</div>
+
+<!-- Main content -->
+<div class="mobile-main-wrap">
+    <div id="main-content-area" class="no-scrollbar">
+
+        <!-- ===== LIST VIEW ===== -->
+        <section id="view-list" class="view-section fade-in">
+            <div class="px-4 pb-4">
+                <!-- Summary header -->
+                <div class="asset-summary">
+                    <div class="flex items-center justify-between">
+                        <div class="text-lg font-black tracking-tight">我的资产 <span class="text-sm font-bold opacity-75 ml-1" id="asset-summary-count">0/0</span></div>
+                        <div class="flex items-center gap-2 opacity-90"><i class="fas fa-search text-lg"></i><i class="fas fa-plus-circle text-lg"></i></div>
+                    </div>
+                    <div class="asset-summary-grid">
+                        <div class="asset-summary-cell"><div class="asset-summary-label">总资产</div><div class="asset-summary-value" id="total-value">¥0</div></div>
+                        <div class="asset-summary-divider"></div>
+                        <div class="asset-summary-cell"><div class="asset-summary-label">总日均</div><div class="asset-summary-value" id="daily-avg">¥0.00</div></div>
+                    </div>
+                    <div class="asset-summary-foot">
+                        <div><div class="daily-label">当前在役 · 日均费用</div><div class="daily-cost" id="daily-avg-foot">¥0.00/天</div></div>
+                        <div class="asset-summary-counts"><div><strong id="active-count">0</strong>在役</div><div><strong id="retired-count">0</strong>已退役</div></div>
+                    </div>
+                </div>
+
+                <!-- Filter tabs -->
+                <div class="mt-4 flex gap-2 overflow-x-auto no-scrollbar" id="filter-tabs"></div>
+
+                <!-- Sort selector -->
+                <div class="mt-3 flex items-center justify-between">
+                    <div class="text-[11px] font-medium asset-section-label" id="list-count-label">共 0 件</div>
+                    <div class="flex items-center gap-2 text-[11px]">
+                        <span class="asset-section-label">排序</span>
+                        <select id="sort-select" onchange="app.renderList()" class="asset-sort text-[11px] font-semibold rounded-full px-2 py-1 border-0 outline-none">
+                            <option value="dailyDesc">日均↓</option>
+                            <option value="dailyAsc">日均↑</option>
+                            <option value="priceDesc">原价↓</option>
+                            <option value="priceAsc">原价↑</option>
+                            <option value="daysDesc">使用天数↓</option>
+                            <option value="dateDesc">购入日↓</option>
+                            <option value="dateAsc">购入日↑</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Asset list -->
+                <div id="asset-list" class="mt-3"></div>
+
+                <!-- Empty state -->
+                <div id="empty-state" class="hidden py-16 text-center">
+                    <div class="text-6xl opacity-20 mb-3"><i class="fas fa-box-open"></i></div>
+                    <div class="text-gray-400 text-sm">还没有物品记录</div>
+                    <button onclick="app.openAssetModal()" class="mt-4 px-5 py-2 rounded-full text-white text-sm font-semibold" style="background:var(--accent)">添加第一件物品</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== STATS VIEW ===== -->
+        <section id="view-stats" class="view-section fade-in">
+            <div class="px-4 pb-4">
+                <!-- Period tabs -->
+                <div class="flex bg-[#1b1d22] rounded-2xl p-1 mt-2">
+                    <button onclick="app.setStatPeriod('week')" id="sp-week" class="flex-1 py-1.5 rounded-lg text-xs font-semibold text-gray-500">周</button>
+                    <button onclick="app.setStatPeriod('month')" id="sp-month" class="flex-1 py-1.5 rounded-lg text-xs font-semibold text-gray-500">月</button>
+                    <button onclick="app.setStatPeriod('year')" id="sp-year" class="flex-1 py-1.5 rounded-lg text-xs font-semibold text-gray-500">年</button>
+                    <button onclick="app.setStatPeriod('all')" id="sp-all" class="flex-1 py-1.5 rounded-lg text-xs font-semibold text-gray-500 active">全部</button>
+                </div>
+
+                <!-- Buy / Sell -->
+                <div class="stats-panel mt-4">
+                    <div class="stats-panel-title mb-3">购入卖出</div>
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div class="stats-metric"><div class="stats-metric-label">购入金额</div><div class="stats-metric-value mt-2" id="stat-buy">¥0</div></div>
+                        <div class="stats-metric"><div class="stats-metric-label">卖出金额</div><div class="stats-metric-value mt-2" id="stat-sell">¥0</div></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="stats-metric"><div class="stats-metric-label">购入件数</div><div class="stats-metric-count mt-2"><span id="stat-buy-count">0</span><span class="text-sm font-semibold text-gray-400 ml-1">件</span></div></div>
+                        <div class="stats-metric"><div class="stats-metric-label">卖出件数</div><div class="stats-metric-count mt-2"><span id="stat-sell-count">0</span><span class="text-sm font-semibold text-gray-400 ml-1">件</span></div></div>
+                    </div>
+                </div>
+
+                <!-- Daily average total -->
+                <div class="stats-panel mt-3">
+                    <div class="stats-panel-title mb-3">日均总计</div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="stats-metric">
+                            <div class="stats-metric-label">日均总额</div>
+                            <div class="flex items-baseline gap-1 mt-2"><span class="stats-metric-value" id="stat-daily-total">¥0.00</span><span class="text-xs text-gray-400">/天</span></div>
+                        </div>
+                        <div class="stats-metric">
+                            <div class="stats-metric-label">平均服役</div>
+                            <div class="stats-metric-count mt-2"><span id="stat-avg-days">0</span><span class="text-sm font-semibold text-gray-400 ml-1">天</span></div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-gray-100">
+                        <div><div class="text-2xl font-black text-gray-700" id="stat-active-count">0</div><div class="text-xs text-gray-400">当前在役件数</div></div>
+                        <div><div class="text-2xl font-black text-gray-700 truncate" id="stat-total-cost">¥0</div><div class="text-xs text-gray-400">累计投入</div></div>
+                    </div>
+                </div>
+
+                <!-- Daily average trend chart -->
+                <div class="stats-panel mt-3">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="stats-panel-title flex items-center gap-2"><i class="fas fa-chart-area text-sky-400"></i> 日均趋势</div>
+                        <div class="text-[10px] text-gray-400 font-semibold" id="trend-range"></div>
+                    </div>
+                    <div id="trend-chart" class="flex items-end justify-between gap-1 h-32"></div>
+                    <div id="trend-labels" class="flex justify-between gap-1 mt-1.5"></div>
+                </div>
+
+                <!-- Category breakdown -->
+                <div class="bg-white rounded-2xl p-5 mt-3 shadow-sm">
+                    <div class="text-sm font-bold text-gray-700 flex items-center gap-2 mb-3"><i class="fas fa-layer-group text-sky-400"></i> 分类占比</div>
+                    <div id="category-breakdown" class="space-y-2.5"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== CATEGORY VIEW ===== -->
+        <section id="view-category" class="view-section fade-in">
+            <div class="px-4 pb-4">
+                <div class="flex items-center justify-between mt-2">
+                    <div class="text-sm font-bold text-gray-700">分类管理</div>
+                    <button onclick="app.openCategoryModal()" class="text-xs font-semibold text-white px-3 py-1 rounded-full" style="background:var(--accent)">+ 新建</button>
+                </div>
+                <div id="category-list" class="mt-3 space-y-2"></div>
+
+                <!-- Data management -->
+                <div class="mt-6 pt-5 border-t border-gray-100">
+                    <div class="text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5"><i class="fas fa-database text-[11px] text-gray-400"></i> 数据管理</div>
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <button onclick="app.exportData()" class="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-white bg-sky-500 hover:bg-sky-600 transition shadow-sm">
+                            <i class="fas fa-file-export"></i> 导出数据
+                        </button>
+                        <button onclick="document.getElementById('import-file').click()" class="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition">
+                            <i class="fas fa-file-import"></i> 导入数据
+                        </button>
+                    </div>
+                    <input type="file" id="import-file" accept="application/json,.json" class="hidden" onchange="app.importData(event)">
+                    <div class="text-[10px] text-gray-400 mt-2 leading-relaxed">导出将下载包含全部物品、分类的 JSON 备份；导入会合并到现有数据（按 id 去重，相同 id 的会被导入数据覆盖）。</div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+<!-- Bottom tab bar -->
+<div class="mobile-tabbar">
+    <button onclick="app.switchTab('list')" id="tab-list" class="tab-btn active"><i class="fas fa-box"></i><span>物品</span></button>
+    <button onclick="app.switchTab('stats')" id="tab-stats" class="tab-btn"><i class="fas fa-chart-pie"></i><span>统计</span></button>
+    <button onclick="app.switchTab('category')" id="tab-category" class="tab-btn"><i class="fas fa-tags"></i><span>分类</span></button>
+</div>
+
+<!-- ============ ASSET MODAL ============ -->
+<div id="asset-modal" class="modal-overlay">
+    <div class="modal-sheet">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+            <h3 class="font-bold text-base" id="asset-modal-title">添加物品</h3>
+            <button onclick="app.closeAssetModal()" class="w-8 h-8 flex items-center justify-center text-gray-400 rounded-lg hover:bg-gray-100"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-5 space-y-5">
+
+            <!-- Icon picker -->
+            <div>
+                <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">图标</label>
+                <div class="mt-1.5 flex gap-1 overflow-x-auto no-scrollbar pb-1" id="icon-picker"></div>
+            </div>
+
+            <!-- Category -->
+            <div>
+                <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">分类</label>
+                <select id="asset-category" class="w-full mt-1.5 px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 outline-none focus:border-sky-400"></select>
+            </div>
+
+            <!-- Name -->
+            <div>
+                <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">物品名称</label>
+                <input id="asset-name" type="text" placeholder="如：Bose QC45" class="w-full mt-1.5 px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 outline-none focus:border-sky-400">
+            </div>
+
+            <!-- Price & Date -->
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">购入价格</label>
+                    <input id="asset-price" type="number" step="0.01" placeholder="0.00" class="w-full mt-1.5 px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 outline-none focus:border-sky-400">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">购入日期</label>
+                    <input id="asset-date" type="date" class="w-full mt-1.5 px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 outline-none focus:border-sky-400">
+                </div>
+            </div>
+
+            <!-- Active status -->
+            <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                <div>
+                    <div class="text-sm font-semibold">正在服役</div>
+                    <div class="text-[11px] text-gray-400">关闭后不再计入日均成本</div>
+                </div>
+                <div id="asset-active" class="sw on" onclick="app.toggleSwitch('asset-active')"></div>
+            </div>
+
+            <!-- Usage based calculation -->
+            <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                <div>
+                    <div class="text-sm font-semibold">按使用天数计算</div>
+                    <div class="text-[11px] text-gray-400">关闭则按购入至今的总天数</div>
+                </div>
+                <div id="asset-usage" class="sw on" onclick="app.toggleSwitch('asset-usage')"></div>
+            </div>
+
+            <!-- Target daily cost -->
+            <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                <div>
+                    <div class="text-sm font-semibold">目标日均成本</div>
+                    <div class="text-[11px] text-gray-400">设为参考值，到期提醒</div>
+                </div>
+                <div id="asset-target-toggle" class="sw" onclick="app.toggleSwitch('asset-target-toggle'); app.toggleTargetInput()"></div>
+            </div>
+            <div id="target-input-wrap" class="hidden">
+                <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">目标日均（元/天）</label>
+                <input id="asset-target" type="number" step="0.01" placeholder="1.00" class="w-full mt-1.5 px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 outline-none focus:border-sky-400">
+            </div>
+
+            <!-- Warranty -->
+            <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                <div>
+                    <div class="text-sm font-semibold">在保修期</div>
+                    <div class="text-[11px] text-gray-400">记录保修到期日</div>
+                </div>
+                <div id="asset-warranty" class="sw" onclick="app.toggleSwitch('asset-warranty'); app.toggleWarrantyInput()"></div>
+            </div>
+            <div id="warranty-input-wrap" class="hidden grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">保修到期</label>
+                    <input id="asset-warranty-date" type="date" class="w-full mt-1.5 px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 outline-none focus:border-sky-400">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">保修期（月）</label>
+                    <input id="asset-warranty-months" type="number" placeholder="12" class="w-full mt-1.5 px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 outline-none focus:border-sky-400">
+                </div>
+            </div>
+
+            <!-- Additional costs -->
+            <div>
+                <div class="flex items-center justify-between">
+                    <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">附加费用</label>
+                    <button onclick="app.addCostRow()" class="text-[11px] font-semibold text-sky-500">+ 添加</button>
+                </div>
+                <div id="cost-rows" class="mt-2 space-y-2"></div>
+            </div>
+
+            <!-- Notes -->
+            <div>
+                <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">备注</label>
+                <textarea id="asset-notes" rows="2" placeholder="购买渠道、序列号等" class="w-full mt-1.5 px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 outline-none focus:border-sky-400 resize-none"></textarea>
+            </div>
+
+            <!-- Photo -->
+            <div>
+                <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">物品照片</label>
+                <div class="mt-2 flex items-center gap-3">
+                    <div id="photo-preview" class="w-20 h-20 rounded-xl bg-gray-100 flex items-center justify-center text-gray-300 overflow-hidden"><i class="fas fa-camera text-xl"></i></div>
+                    <div class="flex flex-col gap-2">
+                        <button onclick="document.getElementById('asset-photo-input').click()" class="px-3 py-1.5 rounded-lg bg-gray-100 text-xs font-semibold text-gray-600">选择图片</button>
+                        <button onclick="app.clearPhoto()" id="clear-photo-btn" class="hidden px-3 py-1.5 rounded-lg bg-red-50 text-xs font-semibold text-red-500">清除</button>
+                    </div>
+                    <input id="asset-photo-input" type="file" accept="image/*" class="hidden" onchange="app.handlePhoto(event)">
+                </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex gap-3 pt-2">
+                <button onclick="app.deleteAssetFromModal()" id="asset-delete-btn" class="hidden flex-1 py-3 rounded-xl bg-red-50 text-red-500 font-semibold text-sm">删除</button>
+                <button onclick="app.saveAsset()" class="flex-[2] py-3 rounded-xl text-white font-semibold text-sm" style="background:var(--accent)">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ CATEGORY MODAL ============ -->
+<div id="category-modal" class="modal-overlay">
+    <div class="modal-sheet">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+            <h3 class="font-bold text-base">分类</h3>
+            <button onclick="app.closeCategoryModal()" class="w-8 h-8 flex items-center justify-center text-gray-400 rounded-lg hover:bg-gray-100"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-5 space-y-4">
+            <div>
+                <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">分类名称</label>
+                <input id="cat-name" type="text" placeholder="如：数码电子" class="w-full mt-1.5 px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 outline-none focus:border-sky-400">
+            </div>
+            <div>
+                <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">图标</label>
+                <div class="mt-1.5 flex gap-1 overflow-x-auto no-scrollbar pb-1" id="cat-icon-picker"></div>
+            </div>
+            <div>
+                <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">颜色</label>
+                <div class="mt-2 flex gap-2" id="cat-color-picker"></div>
+            </div>
+            <button onclick="app.saveCategory()" class="w-full py-3 rounded-xl text-white font-semibold text-sm" style="background:var(--accent)">保存</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ============ 归物 - Asset Tracker ============ */
+const ASSET_ICONS = ['📦','📱','💻','🎧','📷','🎮','⌚','🖥️','🖨️','🔌','🪑','🛋️','📚','🖋️','🎒','👕','👟','🛹','🚲','🏍️','🚗','🏠','🍳','🔪','🧴','🧸','🎸','🎤','💡','🧰','⏰','🔑'];
+const CAT_ICONS = ['📦','数码','🏠','👕','📚','🎮','🍳','🚗','🎵','💼','🛋️','⚙️','🎯','🎁','⚡','🎨'];
+const CAT_COLORS = ['#0ea5e9','#6366f1','#10b981','#f59e0b','#ef4444','#ec4899','#8b5cf6','#14b8a6'];
+
+const DEFAULT_STATE = {
+    assets: [],
+    categories: [
+        { id: 'uncat', name: '未分类', icon: '📦', color: '#9ca3af' }
+    ],
+    filter: 'all',
+    sort: 'dailyDesc',
+    statPeriod: 'all',
+    editingId: null
+};
+
+let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+
+const app = {
+    init() {
+        this.loadState();
+        this.renderAll();
+        this.switchTab('list');
+        // Listen for parent dashboard refresh requests (pb-sync-update from cloud sync, refresh-data from dashboard)
+        window.addEventListener('message', (e) => {
+            if(e.data && (e.data.type === 'refresh-data' || e.data.type === 'pb-sync-update')) { this.loadState(); this.renderAll(); if(document.getElementById('view-list').style.display !== 'none') this.renderList(); }
+        });
+    },
+
+    loadState() {
+        try {
+            const saved = JSON.parse(localStorage.getItem('asset_tracker_state') || '{}');
+            state = { ...JSON.parse(JSON.stringify(DEFAULT_STATE)), ...saved };
+            if(!state.categories || !state.categories.length) state.categories = [{ id: 'uncat', name: '未分类', icon: '📦', color: '#9ca3af' }];
+            if(!state.assets) state.assets = [];
+            if(!state.filter) state.filter = 'all';
+            if(!state.sort) state.sort = 'dailyDesc';
+            if(!state.statPeriod) state.statPeriod = 'all';
+        } catch(e) { state = JSON.parse(JSON.stringify(DEFAULT_STATE)); }
+    },
+
+    saveState() {
+        try {
+            localStorage.setItem('asset_tracker_state', JSON.stringify(state));
+            // Notify parent dashboard
+            if(window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'dashboard-refresh' }, '*');
+            }
+        } catch(e) { console.error('保存失败', e); }
+    },
+
+    renderAll() { this.renderFilterTabs(); this.renderList(); this.renderStats(); this.renderCategories(); },
+
+    // ===== Helpers =====
+    uid() { return 'a' + Date.now() + Math.random().toString(36).slice(2,6); },
+    todayStr() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().split('T')[0]; },
+    daysBetween(d1, d2) {
+        const a = new Date(d1); const b = new Date(d2);
+        a.setHours(0,0,0,0); b.setHours(0,0,0,0);
+        return Math.max(0, Math.round((b - a) / 86400000));
+    },
+    fmtMoney(n) {
+        if(n == null || isNaN(n)) n = 0;
+        return '¥' + Number(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+    },
+    fmtMoney2(n) {
+        if(n == null || isNaN(n)) n = 0;
+        return '¥' + Number(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+    escapeHtml(s) { return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); },
+
+    assetCost(a) {
+        let total = Number(a.price) || 0;
+        if(a.additionalCosts && a.additionalCosts.length) total += a.additionalCosts.reduce((s,c) => s + (Number(c.amount)||0), 0);
+        return total;
+    },
+    assetDays(a) {
+        if(!a.purchaseDate) return 0;
+        const end = a.sold ? new Date(a.sold.date) : new Date();
+        return this.daysBetween(a.purchaseDate, end);
+    },
+    assetDailyCost(a) {
+        if(!a.active) return 0;
+        const days = this.assetDays(a);
+        if(days <= 0) return 0;
+        return this.assetCost(a) / days;
+    },
+
+    // ===== Tab switching =====
+    switchTab(tab) {
+        ['list','stats','category'].forEach(t => {
+            document.getElementById('view-'+t).style.display = 'none';
+            document.getElementById('tab-'+t).classList.remove('active');
+        });
+        document.getElementById('view-'+tab).style.display = 'flex';
+        document.getElementById('tab-'+tab).classList.add('active');
+        const titles = { list:'归物', stats:'统计', category:'分类' };
+        document.getElementById('topbar-title').innerText = titles[tab];
+        if(tab === 'stats') this.renderStats();
+        if(tab === 'list') this.renderList();
+        if(tab === 'category') this.renderCategories();
+    },
+
+    // ===== Filter tabs =====
+    renderFilterTabs() {
+        const el = document.getElementById('filter-tabs');
+        const cats = [{ id: 'all', name: '全部', icon: '' }, ...state.categories];
+        el.innerHTML = cats.map(c => {
+            const active = state.filter === c.id;
+            const icon = c.icon ? c.icon + ' ' : '';
+            return `<button onclick="app.setFilter('${c.id}')" class="px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition ${active?'text-white':'text-gray-300 bg-[#1d2027] border border-white/10'}" style="${active?'background:var(--accent)':''}">${icon}${this.escapeHtml(c.name)}</button>`;
+        }).join('');
+    },
+    setFilter(id) { state.filter = id; this.saveState(); this.renderFilterTabs(); this.renderList(); },
+
+    // ===== List =====
+    renderList() {
+        let list = state.assets.slice();
+        if(state.filter !== 'all') list = list.filter(a => (a.categoryId || 'uncat') === state.filter);
+
+        const sort = document.getElementById('sort-select') ? document.getElementById('sort-select').value : state.sort;
+        state.sort = sort;
+        const sorters = {
+            dailyDesc: (a,b) => this.assetDailyCost(b) - this.assetDailyCost(a),
+            dailyAsc: (a,b) => this.assetDailyCost(a) - this.assetDailyCost(b),
+            priceDesc: (a,b) => this.assetCost(b) - this.assetCost(a),
+            priceAsc: (a,b) => this.assetCost(a) - this.assetCost(b),
+            daysDesc: (a,b) => this.assetDays(b) - this.assetDays(a),
+            dateDesc: (a,b) => (b.purchaseDate||'').localeCompare(a.purchaseDate||''),
+            dateAsc: (a,b) => (a.purchaseDate||'').localeCompare(b.purchaseDate||'')
+        };
+        list.sort(sorters[sort] || sorters.dailyDesc);
+
+        // Summary
+        const allActive = state.assets.filter(a => a.active);
+        const totalValue = allActive.reduce((s,a) => s + this.assetCost(a), 0);
+        const dailyTotal = allActive.reduce((s,a) => s + this.assetDailyCost(a), 0);
+        const retired = state.assets.filter(a => !a.active).length;
+        document.getElementById('total-value').innerText = this.fmtMoney(totalValue);
+        document.getElementById('daily-avg').innerText = this.fmtMoney2(dailyTotal);
+        document.getElementById('daily-avg-foot').innerText = this.fmtMoney2(dailyTotal) + '/天';
+        document.getElementById('active-count').innerText = allActive.length;
+        document.getElementById('retired-count').innerText = retired;
+        const summaryCount = document.getElementById('asset-summary-count');
+        if(summaryCount) summaryCount.innerText = `${allActive.length}/${state.assets.length}`;
+
+        document.getElementById('list-count-label').innerText = `共 ${list.length} 件`;
+
+        const listEl = document.getElementById('asset-list');
+        const emptyEl = document.getElementById('empty-state');
+        if(!list.length) { listEl.innerHTML = ''; emptyEl.classList.remove('hidden'); return; }
+        emptyEl.classList.add('hidden');
+
+        listEl.innerHTML = list.map(a => {
+            const cat = state.categories.find(c => c.id === (a.categoryId || 'uncat')) || state.categories[0];
+            const cost = this.assetCost(a);
+            const days = this.assetDays(a);
+            const daily = this.assetDailyCost(a);
+            const targetDaily = a.targetDailyCost ? Number(a.targetDailyCost) : 0;
+            const targetMet = targetDaily > 0 && daily > 0 && daily <= targetDaily;
+            const warrantyOn = a.warranty && a.warranty.enabled && a.warranty.date;
+            const warrantyExpired = warrantyOn && new Date(a.warranty.date) < new Date();
+            const photo = a.photo ? `<div class="asset-photo"><img src="${a.photo}" alt=""></div>` : `<div class="asset-icon">${a.icon || '📦'}</div>`;
+            const statusBadge = a.active
+                ? (targetMet ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600">达标</span>` : '')
+                : `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-500">退役</span>`;
+            const warrantyBadge = warrantyOn
+                ? (warrantyExpired ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-50 text-red-500">保修过期</span>` : `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600">保修中</span>`)
+                : '';
+
+            return `<div class="asset-card flex items-center gap-3" style="margin-bottom:14px" onclick="app.openAssetModal('${a.id}')">
+                ${photo}
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="asset-name truncate">${this.escapeHtml(a.name)}</span>
+                        ${statusBadge}
+                        ${warrantyBadge}
+                    </div>
+                    <div class="asset-meta mt-1 truncate">${this.fmtMoney(cost)} · ${this.fmtMoney2(daily)}/天</div>
+                </div>
+                <div class="asset-days"><strong>${days}</strong><span>天</span></div>
+            </div>`;
+        }).join('');
+    },
+
+    // ===== Asset modal =====
+    openAssetModal(id) {
+        state.editingId = id || null;
+        const isEdit = !!id;
+        document.getElementById('asset-modal-title').innerText = isEdit ? '编辑物品' : '添加物品';
+        document.getElementById('asset-delete-btn').classList.toggle('hidden', !isEdit);
+
+        // Icon picker
+        const iconEl = document.getElementById('icon-picker');
+        iconEl.innerHTML = ASSET_ICONS.map(ic => `<div class="icon-cell w-6 h-6 rounded-md flex items-center justify-center text-xs bg-gray-50 cursor-pointer hover:bg-gray-100 flex-shrink-0" data-icon="${ic}" onclick="app.selectIcon('${ic}')">${ic}</div>`).join('');
+
+        // Category select
+        const catSel = document.getElementById('asset-category');
+        catSel.innerHTML = state.categories.map(c => `<option value="${c.id}">${c.icon} ${this.escapeHtml(c.name)}</option>`).join('');
+
+        const a = isEdit ? state.assets.find(x => x.id === id) : {};
+        document.getElementById('asset-name').value = a.name || '';
+        document.getElementById('asset-price').value = a.price || '';
+        document.getElementById('asset-date').value = a.purchaseDate || this.todayStr();
+        catSel.value = a.categoryId || 'uncat';
+
+        // Switches
+        this.setSwitch('asset-active', a.active !== false);
+        this.setSwitch('asset-usage', a.usageBased !== false);
+        this.setSwitch('asset-target-toggle', !!a.targetDailyCost);
+        this.setSwitch('asset-warranty', !!(a.warranty && a.warranty.enabled));
+        this.toggleTargetInput();
+        this.toggleWarrantyInput();
+
+        if(a.targetDailyCost) document.getElementById('asset-target').value = a.targetDailyCost;
+        if(a.warranty && a.warranty.date) document.getElementById('asset-warranty-date').value = a.warranty.date;
+        if(a.warranty && a.warranty.months) document.getElementById('asset-warranty-months').value = a.warranty.months;
+
+        // Additional costs
+        const costEl = document.getElementById('cost-rows');
+        costEl.innerHTML = '';
+        if(a.additionalCosts && a.additionalCosts.length) {
+            a.additionalCosts.forEach((c,i) => this.addCostRow(c.name, c.amount));
+        }
+
+        // Notes & photo
+        document.getElementById('asset-notes').value = a.notes || '';
+        const photoPrev = document.getElementById('photo-preview');
+        if(a.photo) {
+            photoPrev.innerHTML = `<img src="${a.photo}" class="w-full h-full object-cover">`;
+            document.getElementById('clear-photo-btn').classList.remove('hidden');
+            this._tempPhoto = a.photo;
+        } else {
+            photoPrev.innerHTML = `<i class="fas fa-camera text-xl"></i>`;
+            document.getElementById('clear-photo-btn').classList.add('hidden');
+            this._tempPhoto = null;
+        }
+
+        // Select icon
+        this.selectIcon(a.icon || ASSET_ICONS[0]);
+
+        document.getElementById('asset-modal').classList.add('show');
+    },
+    closeAssetModal() { document.getElementById('asset-modal').classList.remove('show'); },
+    selectIcon(ic) {
+        this._tempIcon = ic;
+        document.querySelectorAll('#icon-picker .icon-cell').forEach(el => el.classList.toggle('selected', el.dataset.icon === ic));
+    },
+    toggleSwitch(id) {
+        const el = document.getElementById(id);
+        el.classList.toggle('on');
+    },
+    setSwitch(id, on) { document.getElementById(id).classList.toggle('on', !!on); },
+    getSwitch(id) { return document.getElementById(id).classList.contains('on'); },
+    toggleTargetInput() { document.getElementById('target-input-wrap').classList.toggle('hidden', !this.getSwitch('asset-target-toggle')); },
+    toggleWarrantyInput() { document.getElementById('warranty-input-wrap').classList.toggle('hidden', !this.getSwitch('asset-warranty')); },
+    addCostRow(name, amount) {
+        const wrap = document.getElementById('cost-rows');
+        const div = document.createElement('div');
+        div.className = 'flex gap-2';
+        div.innerHTML = `<input type="text" placeholder="名称" value="${this.escapeHtml(name||'')}" class="flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs bg-gray-50 outline-none focus:border-sky-400">
+        <input type="number" step="0.01" placeholder="金额" value="${amount||''}" class="w-24 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs bg-gray-50 outline-none focus:border-sky-400">
+        <button onclick="this.parentElement.remove()" class="w-8 text-red-400"><i class="fas fa-minus"></i></button>`;
+        wrap.appendChild(div);
+    },
+    handlePhoto(e) {
+        const file = e.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            this._tempPhoto = ev.target.result;
+            document.getElementById('photo-preview').innerHTML = `<img src="${ev.target.result}" class="w-full h-full object-cover">`;
+            document.getElementById('clear-photo-btn').classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    },
+    clearPhoto() {
+        this._tempPhoto = null;
+        document.getElementById('photo-preview').innerHTML = `<i class="fas fa-camera text-xl"></i>`;
+        document.getElementById('clear-photo-btn').classList.add('hidden');
+        document.getElementById('asset-photo-input').value = '';
+    },
+    saveAsset() {
+        const name = document.getElementById('asset-name').value.trim();
+        if(!name) { alert('请填写物品名称'); return; }
+        const costs = [];
+        document.querySelectorAll('#cost-rows > div').forEach(d => {
+            const inputs = d.querySelectorAll('input');
+            const n = inputs[0].value.trim();
+            const amt = Number(inputs[1].value);
+            if(n || amt) costs.push({ name: n, amount: amt });
+        });
+        const asset = {
+            id: state.editingId || this.uid(),
+            icon: this._tempIcon || '📦',
+            categoryId: document.getElementById('asset-category').value,
+            name,
+            price: Number(document.getElementById('asset-price').value) || 0,
+            purchaseDate: document.getElementById('asset-date').value,
+            active: this.getSwitch('asset-active'),
+            usageBased: this.getSwitch('asset-usage'),
+            targetDailyCost: this.getSwitch('asset-target-toggle') ? (Number(document.getElementById('asset-target').value) || 0) : null,
+            warranty: this.getSwitch('asset-warranty') ? {
+                enabled: true,
+                date: document.getElementById('asset-warranty-date').value,
+                months: Number(document.getElementById('asset-warranty-months').value) || null
+            } : null,
+            additionalCosts: costs,
+            notes: document.getElementById('asset-notes').value.trim(),
+            photo: this._tempPhoto || null,
+            updatedAt: Date.now()
+        };
+        if(!state.editingId) asset.createdAt = Date.now();
+
+        if(state.editingId) {
+            const idx = state.assets.findIndex(a => a.id === state.editingId);
+            if(idx >= 0) state.assets[idx] = { ...state.assets[idx], ...asset };
+        } else {
+            state.assets.push(asset);
+        }
+        this.saveState();
+        this.closeAssetModal();
+        this.renderAll();
+    },
+    deleteAssetFromModal() {
+        if(!state.editingId) return;
+        if(!confirm('确定删除这件物品？此操作不可撤销。')) return;
+        state.assets = state.assets.filter(a => a.id !== state.editingId);
+        this.saveState();
+        this.closeAssetModal();
+        this.renderAll();
+    },
+
+    // ===== Categories =====
+    renderCategories() {
+        const el = document.getElementById('category-list');
+        if(!state.categories.length) { el.innerHTML = '<div class="text-center text-gray-400 py-8 text-sm">暂无分类</div>'; return; }
+        el.innerHTML = state.categories.map(c => {
+            const count = state.assets.filter(a => (a.categoryId || 'uncat') === c.id).length;
+            const total = state.assets.filter(a => (a.categoryId || 'uncat') === c.id).reduce((s,a) => s + this.assetCost(a), 0);
+            const isDefault = c.id === 'uncat';
+            return `<div class="bg-white rounded-2xl p-3.5 shadow-sm flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl flex items-center justify-center text-xl" style="background:${c.color}22;color:${c.color}">${c.icon}</div>
+                <div class="flex-1">
+                    <div class="text-sm font-bold">${this.escapeHtml(c.name)}</div>
+                    <div class="text-[11px] text-gray-400 mt-0.5">${count} 件 · ${this.fmtMoney(total)}</div>
+                </div>
+                ${isDefault ? '' : `<button onclick="app.openCategoryModal('${c.id}')" class="w-8 h-8 text-gray-400 hover:text-sky-500"><i class="fas fa-pen text-xs"></i></button>`}
+            </div>`;
+        }).join('');
+    },
+    openCategoryModal(id) {
+        this._editingCatId = id || null;
+        document.getElementById('cat-name').value = '';
+        this._tempCatIcon = CAT_ICONS[0];
+        this._tempCatColor = CAT_COLORS[0];
+        if(id) {
+            const c = state.categories.find(x => x.id === id);
+            if(c) {
+                document.getElementById('cat-name').value = c.name;
+                this._tempCatIcon = c.icon;
+                this._tempCatColor = c.color;
+            }
+        }
+        // Icon picker
+        document.getElementById('cat-icon-picker').innerHTML = CAT_ICONS.map(ic => `<div class="icon-cell w-6 h-6 rounded-md flex items-center justify-center text-xs bg-gray-50 cursor-pointer hover:bg-gray-100 flex-shrink-0" data-icon="${ic}" onclick="app.selectCatIcon('${ic}')">${ic}</div>`).join('');
+        // Color picker
+        document.getElementById('cat-color-picker').innerHTML = CAT_COLORS.map(col => `<div class="cat-color-cell w-7 h-7 rounded-full cursor-pointer ${col === this._tempCatColor ? 'ring-2 ring-offset-2 ring-gray-400' : ''}" style="background:${col}" data-color="${col}" onclick="app.selectCatColor('${col}')"></div>`).join('');
+        this.selectCatIcon(this._tempCatIcon);
+        document.getElementById('category-modal').classList.add('show');
+    },
+    closeCategoryModal() { document.getElementById('category-modal').classList.remove('show'); },
+    selectCatIcon(ic) {
+        this._tempCatIcon = ic;
+        document.querySelectorAll('#cat-icon-picker .icon-cell').forEach(el => el.classList.toggle('selected', el.dataset.icon === ic));
+    },
+    selectCatColor(col) {
+        this._tempCatColor = col;
+        document.querySelectorAll('#cat-color-picker .cat-color-cell').forEach(el => {
+            el.classList.toggle('ring-2', el.dataset.color === col);
+            el.classList.toggle('ring-offset-2', el.dataset.color === col);
+            el.classList.toggle('ring-gray-400', el.dataset.color === col);
+        });
+    },
+    saveCategory() {
+        const name = document.getElementById('cat-name').value.trim();
+        if(!name) { alert('请填写分类名称'); return; }
+        const cat = { id: this._editingCatId || this.uid(), name, icon: this._tempCatIcon, color: this._tempCatColor };
+        if(this._editingCatId) {
+            const idx = state.categories.findIndex(c => c.id === this._editingCatId);
+            if(idx >= 0) state.categories[idx] = { ...state.categories[idx], ...cat };
+        } else {
+            state.categories.push(cat);
+        }
+        this.saveState();
+        this.closeCategoryModal();
+        this.renderAll();
+    },
+
+    // ===== Stats =====
+    setStatPeriod(p) {
+        state.statPeriod = p;
+        ['week','month','year','all'].forEach(t => {
+            document.getElementById('sp-'+t).classList.toggle('active', t === p);
+            const el = document.getElementById('sp-'+t);
+            if(t === p) { el.style.background = '#fff'; el.style.color = 'var(--accent)'; el.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)'; }
+            else { el.style.background = ''; el.style.color = ''; el.style.boxShadow = ''; }
+        });
+        this.saveState();
+        this.renderStats();
+    },
+    renderStats() {
+        // ensure period buttons styled
+        ['week','month','year','all'].forEach(t => {
+            const el = document.getElementById('sp-'+t);
+            if(!el) return;
+            const active = state.statPeriod === t;
+            el.classList.toggle('active', active);
+            if(active) { el.style.background = '#fff'; el.style.color = 'var(--accent)'; el.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)'; }
+            else { el.style.background = ''; el.style.color = ''; el.style.boxShadow = ''; }
+        });
+
+        const now = new Date();
+        let start = new Date(0);
+        if(state.statPeriod === 'week') { const d = (now.getDay()+6)%7; start = new Date(now); start.setDate(now.getDate()-d); start.setHours(0,0,0,0); }
+        else if(state.statPeriod === 'month') { start = new Date(now.getFullYear(), now.getMonth(), 1); }
+        else if(state.statPeriod === 'year') { start = new Date(now.getFullYear(), 0, 1); }
+
+        const inRange = (dStr) => { const t = new Date(dStr); return t >= start && t <= now; };
+
+        const periodAssets = state.assets.filter(a => a.purchaseDate && inRange(a.purchaseDate));
+        const buyTotal = periodAssets.reduce((s,a) => s + this.assetCost(a), 0);
+        const soldAssets = state.assets.filter(a => a.sold && a.sold.date && inRange(a.sold.date));
+        const sellTotal = soldAssets.reduce((s,a) => s + (Number(a.sold.price)||0), 0);
+
+        document.getElementById('stat-buy').innerText = this.fmtMoney(buyTotal);
+        document.getElementById('stat-buy-count').innerText = periodAssets.length;
+        document.getElementById('stat-sell').innerText = this.fmtMoney(sellTotal);
+        document.getElementById('stat-sell-count').innerText = soldAssets.length;
+
+        // Daily totals
+        const activeAssets = state.assets.filter(a => a.active);
+        const dailyTotal = activeAssets.reduce((s,a) => s + this.assetDailyCost(a), 0);
+        const totalCost = state.assets.reduce((s,a) => s + this.assetCost(a), 0);
+        const avgDays = state.assets.length ? Math.round(state.assets.reduce((s,a) => s + this.assetDays(a), 0) / state.assets.length) : 0;
+        document.getElementById('stat-daily-total').innerText = this.fmtMoney2(dailyTotal);
+        document.getElementById('stat-active-count').innerText = activeAssets.length;
+        document.getElementById('stat-total-cost').innerText = this.fmtMoney(totalCost);
+        document.getElementById('stat-avg-days').innerText = avgDays;
+
+        // Trend chart - last 7 points (days for week, weeks for month, months for year, years for all)
+        this.renderTrend();
+
+        // Category breakdown
+        const catEl = document.getElementById('category-breakdown');
+        const catsWithTotals = state.categories.map(c => {
+            const items = state.assets.filter(a => (a.categoryId||'uncat') === c.id);
+            const total = items.reduce((s,a) => s + this.assetCost(a), 0);
+            return { ...c, count: items.length, total };
+        }).filter(c => c.total > 0).sort((a,b) => b.total - a.total);
+        const grandTotal = catsWithTotals.reduce((s,c) => s + c.total, 0) || 1;
+        catEl.innerHTML = catsWithTotals.map(c => {
+            const pct = Math.round(c.total / grandTotal * 100);
+            return `<div>
+                <div class="flex items-center justify-between text-xs mb-1">
+                    <span class="font-semibold flex items-center gap-1.5"><span class="w-5 h-5 rounded flex items-center justify-center text-[10px]" style="background:${c.color}22;color:${c.color}">${c.icon}</span>${this.escapeHtml(c.name)} <span class="text-gray-400 font-normal">·${c.count}</span></span>
+                    <span class="font-bold">${this.fmtMoney(c.total)} <span class="text-gray-400 font-normal">${pct}%</span></span>
+                </div>
+                <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full rounded-full" style="width:${pct}%;background:${c.color}"></div></div>
+            </div>`;
+        }).join('') || '<div class="text-center text-gray-400 py-4 text-xs">暂无数据</div>';
+    },
+    renderTrend() {
+        const now = new Date();
+        const points = [];
+        const labels = [];
+        let range = '';
+        if(state.statPeriod === 'week') {
+            // last 7 days
+            for(let i = 6; i >= 0; i--) {
+                const d = new Date(now); d.setDate(now.getDate()-i); d.setHours(0,0,0,0);
+                const end = new Date(d); end.setHours(23,59,59,999);
+                const daily = state.assets.filter(a => a.active).reduce((s,a) => {
+                    const pd = new Date(a.purchaseDate); if(isNaN(pd) || pd > end) return s;
+                    const ed = a.sold ? new Date(a.sold.date) : now;
+                    if(ed < d) return s;
+                    return s + (this.assetCost(a) / Math.max(1, this.assetDays(a)));
+                }, 0);
+                points.push(daily);
+                labels.push((d.getMonth()+1) + '/' + d.getDate());
+            }
+            range = '近 7 天';
+        } else if(state.statPeriod === 'month') {
+            // last 4 weeks
+            for(let i = 3; i >= 0; i--) {
+                const ws = new Date(now); ws.setDate(now.getDate() - (i+1)*7); ws.setHours(0,0,0,0);
+                const we = new Date(now); we.setDate(now.getDate() - i*7); we.setHours(23,59,59,999);
+                const daily = state.assets.filter(a => a.active).reduce((s,a) => {
+                    const pd = new Date(a.purchaseDate); if(isNaN(pd) || pd > we) return s;
+                    const ed = a.sold ? new Date(a.sold.date) : now;
+                    if(ed < ws) return s;
+                    return s + (this.assetCost(a) / Math.max(1, this.assetDays(a)));
+                }, 0);
+                points.push(daily);
+                labels.push('第' + (4-i) + '周');
+            }
+            range = '近 4 周';
+        } else if(state.statPeriod === 'year') {
+            // 12 months
+            for(let i = 11; i >= 0; i--) {
+                const m = new Date(now.getFullYear(), now.getMonth()-i, 1);
+                const me = new Date(now.getFullYear(), now.getMonth()-i+1, 0, 23,59,59,999);
+                const daily = state.assets.filter(a => a.active).reduce((s,a) => {
+                    const pd = new Date(a.purchaseDate); if(isNaN(pd) || pd > me) return s;
+                    const ed = a.sold ? new Date(a.sold.date) : now;
+                    if(ed < m) return s;
+                    return s + (this.assetCost(a) / Math.max(1, this.assetDays(a)));
+                }, 0);
+                points.push(daily);
+                labels.push((m.getMonth()+1) + '月');
+            }
+            range = '近 12 月';
+        } else {
+            // all - by year from earliest purchase
+            const years = new Set();
+            state.assets.forEach(a => { if(a.purchaseDate) years.add(new Date(a.purchaseDate).getFullYear()); });
+            years.add(now.getFullYear());
+            const ys = [...years].sort();
+            ys.forEach(y => {
+                const ye = new Date(y, 11, 31, 23,59,59,999);
+                const daily = state.assets.filter(a => a.active).reduce((s,a) => {
+                    const pd = new Date(a.purchaseDate); if(isNaN(pd) || pd > ye) return s;
+                    const ed = a.sold ? new Date(a.sold.date) : now;
+                    if(ed < new Date(y,0,1)) return s;
+                    return s + (this.assetCost(a) / Math.max(1, this.assetDays(a)));
+                }, 0);
+                points.push(daily);
+                labels.push(y + '');
+            });
+            range = '全部年份';
+        }
+        document.getElementById('trend-range').innerText = range;
+        const max = Math.max(1, ...points);
+        const chart = document.getElementById('trend-chart');
+        const lab = document.getElementById('trend-labels');
+        chart.innerHTML = points.map(p => {
+            const h = Math.max(2, (p / max) * 100);
+            return `<div class="flex-1 flex flex-col items-center justify-end h-full"><div class="trend-bar w-full rounded-t bg-gradient-to-t from-sky-400 to-sky-500" style="height:${h}%;max-width:28px;margin:0 auto" title="${this.fmtMoney2(p)}"></div></div>`;
+        }).join('');
+        lab.innerHTML = labels.map(l => `<div class="flex-1 text-center text-[9px] text-gray-400 font-medium">${l}</div>`).join('');
+    },
+
+    openMenu() { this.switchTab('list'); },
+
+    toast(msg, isErr) {
+        const el = document.getElementById('ast-toast');
+        if(!el) { alert(msg); return; }
+        el.textContent = msg;
+        el.classList.toggle('err', !!isErr);
+        el.classList.add('show');
+        clearTimeout(this._toastT);
+        this._toastT = setTimeout(() => el.classList.remove('show'), 2600);
+    },
+
+    // ===== Import / Export =====
+    exportData() {
+        try {
+            const payload = {
+                app: 'asset-tracker',
+                version: 1,
+                exportedAt: new Date().toISOString(),
+                state: {
+                    assets: state.assets || [],
+                    categories: state.categories || []
+                }
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const d = new Date();
+            const stamp = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+            a.href = url;
+            a.download = `归物数据备份_${stamp}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            this.toast('已导出 ' + (state.assets||[]).length + ' 件物品的数据备份');
+        } catch(e) {
+            console.error('导出失败', e);
+            this.toast('导出失败：' + e.message, true);
+        }
+    },
+
+    importData(event) {
+        const file = event.target.files && event.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const data = JSON.parse(ev.target.result);
+                // Accept either {state:{assets,categories}} or bare {assets,categories}
+                const imported = data && data.state ? data.state : data;
+                if(!imported || !Array.isArray(imported.assets)) {
+                    throw new Error('文件格式不正确：缺少 assets 数组');
+                }
+                // Merge by id (imported overrides existing)
+                const byId = (arr) => { const m = {}; (arr||[]).forEach(x => { if(x && x.id) m[x.id] = x; }); return m; };
+                const curAssets = byId(state.assets);
+                const curCats = byId(state.categories);
+                (imported.assets || []).forEach(a => { if(a && a.id) curAssets[a.id] = a; });
+                (imported.categories || []).forEach(c => { if(c && c.id) curCats[c.id] = c; });
+                state.assets = Object.values(curAssets);
+                state.categories = Object.values(curCats);
+                // ensure at least a default category
+                if(!state.categories.length) state.categories = [{ id:'uncat', name:'未分类', icon:'📦', color:'#9ca3af' }];
+                this.saveState();
+                this.renderAll();
+                if(document.getElementById('view-list').style.display !== 'none') this.renderList();
+                const nImp = (imported.assets||[]).length;
+                this.toast(`导入成功：新增/更新 ${nImp} 件物品、${(imported.categories||[]).length} 个分类`);
+            } catch(e) {
+                console.error('导入失败', e);
+                this.toast('导入失败：' + e.message, true);
+            }
+        };
+        reader.onerror = () => this.toast('读取文件失败', true);
+        reader.readAsText(file);
+        // reset so same file can be re-selected
+        event.target.value = '';
+    }
+};
+
+// Init
+document.addEventListener('DOMContentLoaded', () => app.init());
+app.init();
+</script>
+</body>
+</html>

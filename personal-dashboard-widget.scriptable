@@ -1,0 +1,512 @@
+// Variables used by Scriptable.
+// These must be at the very top of the file. Do not edit.
+// icon-color: purple; icon-glyph: list-check;
+
+/**
+ * 个人看板 - iOS 桌面小组件
+ * 数据来源：Supabase 云同步（需先在 PWA 中配置好同步）
+ *
+ * 使用方法：
+ * 1. 在 App Store 购买安装 Scriptable
+ * 2. 将本脚本导入 Scriptable（iCloud 文件夹或复制粘贴）
+ * 3. 填写下方 CONFIG 中的 Supabase 信息
+ * 4. 长按桌面 → 添加小组件 → 选 Scriptable → 选本脚本
+ * 5. 选择小/中/大尺寸
+ *
+ * 点击小组件可跳转到 PWA 完整应用
+ */
+
+// ============ 配置区（必填）============
+const CONFIG = {
+  // Supabase 项目地址，例: https://abcd1234.supabase.co
+  supabaseUrl: "",
+  // Supabase 匿名公钥 (anon public key)
+  supabaseKey: "",
+  // 8 位同步码（在 PWA 的云同步设置里查看）
+  syncCode: "",
+};
+
+// PWA 地址（点击 Widget 跳转）
+const PWA_URL = "https://90d83f25be1b437bb7170c018ea232ae.app.codebuddy.work";
+
+// ============ 以下为逻辑代码，无需修改 ============
+
+// 今日日期 YYYY-MM-DD
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// 本周一起始时间
+function mondayStr() {
+  const now = new Date();
+  const day = now.getDay() || 7; // 周日=0→7
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - day + 1);
+  monday.setHours(0, 0, 0, 0);
+  const y = monday.getFullYear();
+  const m = String(monday.getMonth() + 1).padStart(2, "0");
+  const d = String(monday.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// 从 Supabase 拉取数据
+async function fetchData() {
+  const url =
+    `${CONFIG.supabaseUrl}/rest/v1/dashboard_sync` +
+    `?sync_code=eq.${encodeURIComponent(CONFIG.syncCode)}` +
+    `&select=data_key,data_value`;
+
+  const req = new Request(url);
+  req.headers = {
+    apikey: CONFIG.supabaseKey,
+    Authorization: `Bearer ${CONFIG.supabaseKey}`,
+  };
+
+  const rows = await req.loadJSON();
+  let tasks = [];
+  let diaries = [];
+
+  for (const row of rows) {
+    const v = row.data_value;
+    if (row.data_key === "ticktick_pro_state" && v) {
+      tasks = v.tasks || [];
+    } else if (row.data_key === "dayone_premium_diaries" && Array.isArray(v)) {
+      diaries = v;
+    }
+  }
+  return { tasks, diaries };
+}
+
+// 计算统计数据
+function getStats(tasks, diaries) {
+  const today = todayStr();
+  const monday = mondayStr();
+
+  const todayTasks = tasks.filter((t) => t.startDate === today);
+  const todayDone = todayTasks.filter((t) => t.completed);
+  const todayPending = todayTasks.filter((t) => !t.completed);
+
+  const weekTasks = tasks.filter((t) => t.startDate >= monday);
+  const weekDone = weekTasks.filter((t) => t.completed);
+
+  // 最近 3 条日记
+  const recentDiaries = diaries
+    .slice()
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+    .slice(0, 3);
+
+  // 今日已完成率
+  const todayRate =
+    todayTasks.length > 0
+      ? Math.round((todayDone.length / todayTasks.length) * 100)
+      : 0;
+
+  return {
+    today,
+    todayTotal: todayTasks.length,
+    todayDone: todayDone.length,
+    todayPending,
+    todayRate,
+    weekTotal: weekTasks.length,
+    weekDone: weekDone.length,
+    totalTasks: tasks.length,
+    totalDiaries: diaries.length,
+    recentDiaries,
+  };
+}
+
+// 心情 emoji 映射
+const MOOD_MAP = {
+  great: "😄",
+  good: "🙂",
+  okay: "😐",
+  bad: "😕",
+  awful: "😢",
+  happy: "😄",
+  calm: "😌",
+  excited: "🤩",
+  sad: "😢",
+  angry: "😠",
+};
+
+function moodEmoji(mood) {
+  if (!mood) return "📝";
+  return MOOD_MAP[mood] || MOOD_MAP[mood.toLowerCase()] || "📝";
+}
+
+// 截断文本
+function truncate(str, len) {
+  if (!str) return "";
+  return str.length > len ? str.slice(0, len) + "…" : str;
+}
+
+// ============ Widget 渲染 ============
+
+// 颜色定义
+const C_BG1 = new Color("#667eea");
+const C_BG2 = new Color("#764ba2");
+const C_WHITE = Color.white();
+const C_WHITE_70 = new Color(1, 1, 1, 0.7);
+const C_WHITE_50 = new Color(1, 1, 1, 0.5);
+const C_WHITE_30 = new Color(1, 1, 1, 0.3);
+const C_GREEN = new Color("#4ade80");
+const C_RED = new Color("#f87171");
+const C_YELLOW = new Color("#fbbf24");
+
+// 设置渐变背景
+function setGradient(widget) {
+  const gradient = new LinearGradient();
+  gradient.colors = [C_BG1, C_BG2];
+  gradient.locations = [0, 1];
+  widget.backgroundGradient = gradient;
+}
+
+// 创建标题行
+function addTitle(widget, subtitle) {
+  const header = widget.addStack();
+  header.centerAlignContent();
+
+  const title = header.addText("📋 看板");
+  title.font = Font.boldSystemFont(15);
+  title.textColor = C_WHITE;
+
+  header.addSpacer();
+
+  if (subtitle) {
+    const date = header.addText(subtitle);
+    date.font = Font.mediumSystemFont(11);
+    date.textColor = C_WHITE_70;
+  }
+}
+
+// 创建统计数字卡片
+function addStatCard(stack, num, label, color) {
+  const card = stack.addStack();
+  card.layoutVertically();
+  card.centerAlignContent();
+  card.size = new Size(0, 0);
+
+  const numText = card.addText(String(num));
+  numText.font = Font.boldSystemFont(22);
+  numText.textColor = color || C_WHITE;
+  numText.centerAlignText();
+
+  const labelText = card.addText(label);
+  labelText.font = Font.mediumSystemFont(9);
+  labelText.textColor = C_WHITE_70;
+  labelText.centerAlignText();
+}
+
+// 进度条（用文字模拟）
+function addProgressBar(widget, rate) {
+  const barWidget = widget.addStack();
+  barWidget.size = new Size(0, 6);
+  barWidget.backgroundColor = C_WHITE_30;
+  barWidget.cornerRadius = 3;
+
+  const fillWidth = Math.max(rate, 2) / 100;
+  const fill = barWidget.addStack();
+  fill.size = new Size(fillWidth, 6);
+  fill.backgroundColor = C_GREEN;
+  fill.cornerRadius = 3;
+}
+
+// ===== 小尺寸 Widget =====
+function createSmallWidget(stats) {
+  const widget = new ListWidget();
+  setGradient(widget);
+  widget.setPadding(14, 14, 14, 14);
+  widget.url = PWA_URL;
+
+  addTitle(widget);
+
+  widget.addSpacer(8);
+
+  // 今日完成率大数字
+  const rateStack = widget.addStack();
+  rateStack.layoutVertically();
+  rateStack.centerAlignContent();
+
+  const rateText = rateStack.addText(`${stats.todayRate}%`);
+  rateText.font = Font.boldSystemFont(32);
+  rateText.textColor = C_WHITE;
+  rateText.centerAlignText();
+
+  const rateLabel = rateStack.addText("今日完成");
+  rateLabel.font = Font.mediumSystemFont(10);
+  rateLabel.textColor = C_WHITE_70;
+  rateLabel.centerAlignText();
+
+  widget.addSpacer(6);
+  addProgressBar(widget, stats.todayRate);
+
+  widget.addSpacer(6);
+
+  // 底部：待办数 + 日记数
+  const bottom = widget.addStack();
+  bottom.centerAlignContent();
+
+  const todo = bottom.addText(`✓ ${stats.todayDone}/${stats.todayTotal}`);
+  todo.font = Font.mediumSystemFont(11);
+  todo.textColor = C_WHITE_70;
+
+  bottom.addSpacer();
+
+  const diary = bottom.addText(`📓 ${stats.totalDiaries}`);
+  diary.font = Font.mediumSystemFont(11);
+  diary.textColor = C_WHITE_70;
+
+  return widget;
+}
+
+// ===== 中尺寸 Widget =====
+function createMediumWidget(stats) {
+  const widget = new ListWidget();
+  setGradient(widget);
+  widget.setPadding(14, 16, 14, 16);
+  widget.url = PWA_URL;
+
+  addTitle(widget, "今日看板");
+
+  widget.addSpacer(8);
+
+  // 上半部分：4 个统计卡片横向排列
+  const statsRow = widget.addStack();
+  statsRow.centerAlignContent();
+  statsRow.addSpacer(2);
+
+  addStatCard(statsRow, stats.todayDone, "今日完成", C_GREEN);
+  statsRow.addSpacer(12);
+  addStatCard(statsRow, stats.todayTotal - stats.todayDone, "待办", C_YELLOW);
+  statsRow.addSpacer(12);
+  addStatCard(statsRow, stats.weekDone, "本周完成", C_WHITE);
+  statsRow.addSpacer(12);
+  addStatCard(statsRow, stats.totalDiaries, "日记", C_WHITE);
+
+  statsRow.addSpacer(2);
+
+  widget.addSpacer(8);
+
+  // 进度条
+  const progressLabel = widget.addText(`今日进度 ${stats.todayRate}%`);
+  progressLabel.font = Font.mediumSystemFont(10);
+  progressLabel.textColor = C_WHITE_70;
+
+  widget.addSpacer(2);
+  addProgressBar(widget, stats.todayRate);
+
+  widget.addSpacer(6);
+
+  // 今日待办列表（最多 3 条）
+  if (stats.todayPending.length > 0) {
+    const listLabel = widget.addText("待办事项");
+    listLabel.font = Font.boldSystemFont(10);
+    listLabel.textColor = C_WHITE_50;
+
+    widget.addSpacer(2);
+
+    const showCount = Math.min(stats.todayPending.length, 3);
+    for (let i = 0; i < showCount; i++) {
+      const item = widget.addStack();
+      item.centerAlignContent();
+      const dot = item.addText("○");
+      dot.font = Font.systemFont(11);
+      dot.textColor = C_WHITE_70;
+      item.addSpacer(4);
+      const taskText = item.addText(truncate(stats.todayPending[i].title, 22));
+      taskText.font = Font.systemFont(11);
+      taskText.textColor = C_WHITE;
+    }
+    if (stats.todayPending.length > 3) {
+      const more = widget.addText(
+        `  +${stats.todayPending.length - 3} 更多…`
+      );
+      more.font = Font.mediumSystemFont(10);
+      more.textColor = C_WHITE_50;
+    }
+  } else if (stats.todayTotal > 0) {
+    const done = widget.addText("🎉 今日全部完成！");
+    done.font = Font.mediumSystemFont(12);
+    done.textColor = C_GREEN;
+  } else {
+    const empty = widget.addText("今日暂无任务");
+    empty.font = Font.mediumSystemFont(12);
+    empty.textColor = C_WHITE_50;
+  }
+
+  return widget;
+}
+
+// ===== 大尺寸 Widget =====
+function createLargeWidget(stats) {
+  const widget = new ListWidget();
+  setGradient(widget);
+  widget.setPadding(16, 18, 16, 18);
+  widget.url = PWA_URL;
+
+  addTitle(widget, stats.today);
+
+  widget.addSpacer(10);
+
+  // 第一行：4 个统计卡片
+  const row1 = widget.addStack();
+  row1.centerAlignContent();
+  row1.addSpacer(2);
+  addStatCard(row1, stats.todayDone, "今日完成", C_GREEN);
+  row1.addSpacer(16);
+  addStatCard(row1, stats.todayTotal, "今日总数", C_YELLOW);
+  row1.addSpacer(16);
+  addStatCard(row1, stats.weekDone, "本周完成", C_WHITE);
+  row1.addSpacer(16);
+  addStatCard(row1, stats.totalTasks, "总任务", C_WHITE);
+  row1.addSpacer(2);
+
+  widget.addSpacer(10);
+
+  // 进度条
+  const progressLabel = widget.addText(`今日进度 ${stats.todayRate}%`);
+  progressLabel.font = Font.boldSystemFont(11);
+  progressLabel.textColor = C_WHITE_70;
+  widget.addSpacer(3);
+  addProgressBar(widget, stats.todayRate);
+
+  widget.addSpacer(10);
+
+  // 待办事项区
+  const todoLabel = widget.addText("📌 今日待办");
+  todoLabel.font = Font.boldSystemFont(12);
+  todoLabel.textColor = C_WHITE;
+
+  widget.addSpacer(4);
+
+  if (stats.todayPending.length > 0) {
+    const showCount = Math.min(stats.todayPending.length, 4);
+    for (let i = 0; i < showCount; i++) {
+      const item = widget.addStack();
+      item.centerAlignContent();
+      const dot = item.addText("○");
+      dot.font = Font.systemFont(12);
+      dot.textColor = C_WHITE_70;
+      item.addSpacer(5);
+      const taskText = item.addText(
+        truncate(stats.todayPending[i].title, 30)
+      );
+      taskText.font = Font.systemFont(12);
+      taskText.textColor = C_WHITE;
+      widget.addSpacer(2);
+    }
+    if (stats.todayPending.length > 4) {
+      const more = widget.addText(
+        `  +${stats.todayPending.length - 4} 更多…`
+      );
+      more.font = Font.mediumSystemFont(10);
+      more.textColor = C_WHITE_50;
+    }
+  } else if (stats.todayTotal > 0) {
+    const done = widget.addText("🎉 今日任务全部完成！");
+    done.font = Font.mediumSystemFont(13);
+    done.textColor = C_GREEN;
+  } else {
+    const empty = widget.addText("今日暂无任务安排");
+    empty.font = Font.mediumSystemFont(12);
+    empty.textColor = C_WHITE_50;
+  }
+
+  widget.addSpacer(10);
+
+  // 最近日记区
+  const diaryLabel = widget.addText("📓 最近日记");
+  diaryLabel.font = Font.boldSystemFont(12);
+  diaryLabel.textColor = C_WHITE;
+
+  widget.addSpacer(4);
+
+  if (stats.recentDiaries.length > 0) {
+    for (let i = 0; i < Math.min(stats.recentDiaries.length, 2); i++) {
+      const d = stats.recentDiaries[i];
+      const item = widget.addStack();
+      item.centerAlignContent();
+      const mood = item.addText(moodEmoji(d.mood));
+      mood.font = Font.systemFont(12);
+      item.addSpacer(5);
+      const title = item.addText(truncate(d.title || "无标题", 24));
+      title.font = Font.systemFont(12);
+      title.textColor = C_WHITE;
+      widget.addSpacer(2);
+    }
+  } else {
+    const empty = widget.addText("暂无日记记录");
+    empty.font = Font.mediumSystemFont(11);
+    empty.textColor = C_WHITE_50;
+  }
+
+  return widget;
+}
+
+// 配置缺失时的提示 Widget
+function createErrorWidget(msg) {
+  const widget = new ListWidget();
+  widget.backgroundColor = new Color("#1a1a2e");
+  widget.setPadding(16, 16, 16, 16);
+
+  const icon = widget.addText("⚠️");
+  icon.font = Font.systemFont(28);
+  icon.centerAlignText();
+
+  widget.addSpacer(6);
+
+  const title = widget.addText("看板未配置");
+  title.font = Font.boldSystemFont(13);
+  title.textColor = Color.white();
+  title.centerAlignText();
+
+  widget.addSpacer(4);
+
+  const desc = widget.addText(msg);
+  desc.font = Font.systemFont(10);
+  desc.textColor = new Color(1, 1, 1, 0.6);
+  desc.centerAlignText();
+
+  return widget;
+}
+
+// ============ 入口 ============
+async function main() {
+  let widget;
+
+  // 检查配置
+  if (!CONFIG.supabaseUrl || !CONFIG.supabaseKey || !CONFIG.syncCode) {
+    widget = createErrorWidget(
+      "请打开脚本填写 Supabase 配置和同步码"
+    );
+  } else {
+    try {
+      const { tasks, diaries } = await fetchData();
+      const stats = getStats(tasks, diaries);
+
+      // 根据小组件尺寸渲染
+      const family = config.widgetFamily;
+      if (family === "small") {
+        widget = createSmallWidget(stats);
+      } else if (family === "medium") {
+        widget = createMediumWidget(stats);
+      } else if (family === "large") {
+        widget = createLargeWidget(stats);
+      } else {
+        // 预览模式（在 Scriptable 内运行时），默认显示中尺寸
+        widget = createMediumWidget(stats);
+      }
+    } catch (e) {
+      widget = createErrorWidget("数据加载失败：请检查网络和配置\n" + e.message);
+    }
+  }
+
+  Script.setWidget(widget);
+  Script.complete();
+}
+
+await main();

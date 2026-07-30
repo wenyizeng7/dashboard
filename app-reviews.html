@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>小众点评</title>
+<link rel="stylesheet" href="tailwind.css">
+<link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
+<style>
+  body { -webkit-tap-highlight-color: transparent; }
+  .view-section { display: none; }
+  .view-section.active { display: block; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .star-input i { cursor: pointer; transition: transform .1s; }
+  .star-input i:active { transform: scale(1.3); }
+  .review-card { transition: transform .15s; }
+  .review-card:active { transform: scale(0.98); }
+  @keyframes fade { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
+  .fade-in { animation: fade .35s ease; }
+  .toast { animation: fade .3s ease; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-20">
+
+<!-- Header -->
+<header class="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 py-3">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-lg font-black text-slate-800">🍴 小众点评</h1>
+      <p class="text-[11px] text-slate-400">记录你吃过的每一口</p>
+    </div>
+    <button onclick="app.openReviewModal()" class="px-3 py-2 rounded-xl bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-200 active:scale-95 transition">
+      <i class="fas fa-plus mr-1"></i>点评
+    </button>
+  </div>
+</header>
+
+<!-- Tabs -->
+<nav class="sticky top-[56px] z-20 bg-white border-b border-slate-100 px-2 flex gap-1">
+  <button onclick="app.switchTab('list')" id="tab-list" class="flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent transition">📋 点评</button>
+  <button onclick="app.switchTab('stats')" id="tab-stats" class="flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent transition">📊 统计</button>
+  <button onclick="app.switchTab('categories')" id="tab-categories" class="flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent transition">🏷️ 分类</button>
+</nav>
+
+<main class="px-4 pt-4 max-w-3xl mx-auto">
+
+<!-- ====== List ====== -->
+<section id="view-list" class="view-section">
+  <!-- Summary card -->
+  <div id="summary-card" class="mb-4"></div>
+
+  <!-- Filter + sort -->
+  <div class="flex items-center gap-2 mb-3 overflow-x-auto no-scrollbar">
+    <div id="filter-tabs" class="flex gap-1.5 flex-shrink-0"></div>
+  </div>
+  <div class="flex items-center justify-between mb-3">
+    <span id="list-count" class="text-xs text-slate-400 font-semibold"></span>
+    <select id="sort-select" onchange="app.state.sort=this.value; app.saveState(); app.renderList()" class="text-xs bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-slate-500 font-semibold outline-none">
+      <option value="dateDesc">最新优先</option>
+      <option value="dateAsc">最早优先</option>
+      <option value="ratingDesc">评分最高</option>
+      <option value="priceDesc">价格最高</option>
+      <option value="priceAsc">价格最低</option>
+    </select>
+  </div>
+  <div id="review-list"></div>
+  <div id="review-empty" class="hidden text-center py-16">
+    <i class="fas fa-utensils text-slate-200 text-5xl mb-3"></i>
+    <p class="text-slate-400 text-sm">还没有点评</p>
+    <p class="text-slate-300 text-xs mt-1">点击右上角"点评"开始记录</p>
+  </div>
+</section>
+
+<!-- ====== Stats ====== -->
+<section id="view-stats" class="view-section">
+  <div id="stats-container"></div>
+</section>
+
+<!-- ====== Categories ====== -->
+<section id="view-categories" class="view-section">
+  <div class="mb-4">
+    <button onclick="app.openCategoryModal()" class="w-full py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-bold"><i class="fas fa-plus mr-1"></i>新建分类</button>
+  </div>
+  <div id="category-list"></div>
+
+  <!-- Data management -->
+  <div class="mt-8 pt-6 border-t border-slate-100">
+    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">数据管理</h3>
+    <div class="flex gap-2">
+      <button onclick="app.exportData()" class="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold"><i class="fas fa-download mr-1"></i>导出</button>
+      <label class="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold text-center cursor-pointer">
+        <i class="fas fa-upload mr-1"></i>导入
+        <input type="file" accept=".json" onchange="app.importData(event)" class="hidden">
+      </label>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- Add Review Modal -->
+<div id="review-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onclick="if(event.target===this) app.closeReviewModal()">
+  <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-base font-black text-slate-800">🍴 添加点评</h2>
+      <button onclick="app.closeReviewModal()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="space-y-3">
+      <!-- Name -->
+      <div>
+        <label class="text-xs font-bold text-slate-400">名称 *</label>
+        <input id="rv-name" type="text" placeholder="拿铁 / 牛肉面 / 抹茶蛋糕..." class="w-full mt-1 px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-rose-400 outline-none">
+      </div>
+      <!-- Category -->
+      <div>
+        <label class="text-xs font-bold text-slate-400">分类</label>
+        <select id="rv-category" class="w-full mt-1 px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-rose-400 outline-none bg-white"></select>
+      </div>
+      <!-- Place -->
+      <div>
+        <label class="text-xs font-bold text-slate-400">地点</label>
+        <input id="rv-place" type="text" placeholder="星巴克(国贸店)" class="w-full mt-1 px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-rose-400 outline-none">
+      </div>
+      <!-- Rating -->
+      <div>
+        <label class="text-xs font-bold text-slate-400">评分</label>
+        <div id="rv-rating" class="star-input flex gap-1 mt-1">
+          <i class="far fa-star text-2xl text-slate-300" data-val="1" onclick="app.setRating(1)"></i>
+          <i class="far fa-star text-2xl text-slate-300" data-val="2" onclick="app.setRating(2)"></i>
+          <i class="far fa-star text-2xl text-slate-300" data-val="3" onclick="app.setRating(3)"></i>
+          <i class="far fa-star text-2xl text-slate-300" data-val="4" onclick="app.setRating(4)"></i>
+          <i class="far fa-star text-2xl text-slate-300" data-val="5" onclick="app.setRating(5)"></i>
+        </div>
+      </div>
+      <!-- Price -->
+      <div>
+        <label class="text-xs font-bold text-slate-400">价格 (¥)</label>
+        <input id="rv-price" type="number" step="0.01" placeholder="35.00" class="w-full mt-1 px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-rose-400 outline-none">
+      </div>
+      <!-- Tags -->
+      <div>
+        <label class="text-xs font-bold text-slate-400">标签 (逗号分隔)</label>
+        <input id="rv-tags" type="text" placeholder="推荐, 偏甜, 打卡" class="w-full mt-1 px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-rose-400 outline-none">
+      </div>
+      <!-- Photo -->
+      <div>
+        <label class="text-xs font-bold text-slate-400">照片</label>
+        <div class="mt-1">
+          <label class="block w-full py-6 rounded-lg border-2 border-dashed border-slate-200 text-center cursor-pointer hover:border-rose-300 transition">
+            <i class="fas fa-camera text-slate-300 text-2xl mb-1"></i>
+            <p class="text-xs text-slate-400">点击上传</p>
+            <input type="file" accept="image/*" class="hidden" onchange="app.handlePhoto(event)">
+          </label>
+          <img id="rv-photo-preview" class="hidden w-full rounded-lg mt-2 max-h-48 object-cover">
+          <button id="rv-photo-remove" onclick="app.removePhoto()" class="hidden mt-2 text-xs text-red-400 font-bold">移除照片</button>
+        </div>
+      </div>
+      <!-- Text -->
+      <div>
+        <label class="text-xs font-bold text-slate-400">点评内容</label>
+        <textarea id="rv-text" rows="3" placeholder="味道不错，奶味浓郁，下次还来..." class="w-full mt-1 px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-rose-400 outline-none resize-none"></textarea>
+      </div>
+      <!-- Date -->
+      <div>
+        <label class="text-xs font-bold text-slate-400">日期</label>
+        <input id="rv-date" type="date" class="w-full mt-1 px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-rose-400 outline-none">
+      </div>
+      <button onclick="app.saveReview()" class="w-full py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-sm shadow-lg shadow-rose-200">保存点评</button>
+    </div>
+  </div>
+</div>
+
+<!-- Category Modal -->
+<div id="cat-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onclick="if(event.target===this) app.closeCategoryModal()">
+  <div class="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-base font-black text-slate-800">🏷️ 新建分类</h2>
+      <button onclick="app.closeCategoryModal()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs font-bold text-slate-400">分类名称</label>
+        <input id="cat-name" type="text" placeholder="正餐" class="w-full mt-1 px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-rose-400 outline-none">
+      </div>
+      <div>
+        <label class="text-xs font-bold text-slate-400">图标</label>
+        <div id="cat-icon-picker" class="flex gap-1 overflow-x-auto no-scrollbar mt-1 pb-1"></div>
+      </div>
+      <div>
+        <label class="text-xs font-bold text-slate-400">颜色</label>
+        <div id="cat-color-picker" class="flex gap-2 flex-wrap mt-1"></div>
+      </div>
+      <button onclick="app.saveCategory()" class="w-full py-3 rounded-xl bg-rose-500 text-white font-bold text-sm">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 hidden"></div>
+
+<script>
+const ICONS = ['🍽️','☕','🧋','🍰','🍺','🍿','🍜','🍕','🍔','🍣','🥗','🌯','🍜','🥩','🍤','🌮','🥘','🍨','🧁','🥐','🍷','🥤','🧃','🍪','🍫','🥨'];
+const COLORS = ['#f43f5e','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#64748b','#14b8a6'];
+const DEFAULT_CATS = [
+  { id: 'meal', name: '正餐', icon: '🍽️', color: '#f43f5e' },
+  { id: 'coffee', name: '咖啡', icon: '☕', color: '#8b5cf6' },
+  { id: 'milktea', name: '奶茶', icon: '🧋', color: '#ec4899' },
+  { id: 'dessert', name: '甜点', icon: '🍰', color: '#eab308' },
+  { id: 'drinks', name: '酒水', icon: '🍺', color: '#22c55e' },
+  { id: 'snack', name: '零食', icon: '🍿', color: '#f97316' }
+];
+
+const DEFAULT_STATE = {
+  reviews: [],
+  categories: JSON.parse(JSON.stringify(DEFAULT_CATS)),
+  filter: 'all',
+  sort: 'dateDesc'
+};
+let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+let editId = null;
+let currentRating = 0;
+let currentPhoto = null;
+let currentTab = 'list';
+
+const STORAGE_KEY = 'reviews_pro_state';
+
+const app = {
+  init() {
+    this.loadState();
+    this.renderAll();
+    this.switchTab('list');
+    window.addEventListener('message', (e) => {
+      if (e.data && (e.data.type === 'refresh-data' || e.data.type === 'pb-sync-update')) { this.loadState(); this.renderAll(); if (document.getElementById('view-list').classList.contains('active')) this.renderList(); }
+    });
+    this._lastStateStr = JSON.stringify(state);
+    setInterval(() => {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw && raw !== this._lastStateStr) {
+        this.loadState(); this.renderAll();
+        if (document.getElementById('view-list').classList.contains('active')) this.renderList();
+      }
+    }, 2000);
+  },
+
+  loadState() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      state = { ...JSON.parse(JSON.stringify(DEFAULT_STATE)), ...saved };
+      if (!state.reviews) state.reviews = [];
+      if (!state.categories || !state.categories.length) state.categories = JSON.parse(JSON.stringify(DEFAULT_CATS));
+      if (!state.filter) state.filter = 'all';
+      if (!state.sort) state.sort = 'dateDesc';
+      this._lastStateStr = JSON.stringify(state);
+    } catch (e) { state = JSON.parse(JSON.stringify(DEFAULT_STATE)); }
+  },
+
+  saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      this._lastStateStr = JSON.stringify(state);
+      if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'dashboard-refresh' }, '*');
+    } catch (e) { console.error('保存失败', e); }
+  },
+
+  switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => { b.classList.remove('text-rose-500', 'border-rose-400'); b.classList.add('text-slate-400', 'border-transparent'); });
+    const view = document.getElementById('view-' + tab);
+    if (view) view.classList.add('active');
+    const btn = document.getElementById('tab-' + tab);
+    if (btn) { btn.classList.remove('text-slate-400', 'border-transparent'); btn.classList.add('text-rose-500', 'border-rose-400'); }
+    if (tab === 'list') this.renderList();
+    else if (tab === 'stats') this.renderStats();
+    else if (tab === 'categories') this.renderCategories();
+  },
+
+  renderAll() { this.renderSummary(); this.renderFilterTabs(); this.renderList(); this.renderStats(); this.renderCategories(); },
+
+  // ===== Summary =====
+  renderSummary() {
+    const reviews = state.reviews;
+    const total = reviews.length;
+    const avgRating = total > 0 ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / total).toFixed(1) : '0.0';
+    const totalSpent = reviews.reduce((s, r) => s + (Number(r.price) || 0), 0);
+    const thisMonth = reviews.filter(r => r.date && r.date.startsWith(this.todayStr().slice(0, 7))).length;
+
+    document.getElementById('summary-card').innerHTML = `
+      <div class="bg-gradient-to-br from-rose-500 to-pink-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
+        <div class="relative z-10">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <p class="text-[10px] text-white/70 font-bold uppercase tracking-wide">总点评</p>
+              <p class="text-2xl font-black mt-0.5">${total}<span class="text-sm font-normal text-white/60 ml-1">条</span></p>
+            </div>
+            <div>
+              <p class="text-[10px] text-white/70 font-bold uppercase tracking-wide">平均评分</p>
+              <p class="text-2xl font-black mt-0.5 flex items-center gap-1">${avgRating}<i class="fas fa-star text-amber-300 text-base"></i></p>
+            </div>
+          </div>
+          <div class="mt-3 pt-3 border-t border-white/20 flex items-center justify-between">
+            <div>
+              <p class="text-[10px] text-white/70 font-bold uppercase">累计花费</p>
+              <p class="text-lg font-bold">¥${this.fmtMoney(totalSpent)}</p>
+            </div>
+            <div class="text-right">
+              <p class="text-[10px] text-white/70 font-bold uppercase">本月点评</p>
+              <p class="text-lg font-bold">${thisMonth}<span class="text-xs text-white/60"> 条</span></p>
+            </div>
+          </div>
+        </div>
+        <i class="fas fa-utensils absolute -right-4 -bottom-4 text-white/10 text-7xl"></i>
+      </div>
+    `;
+  },
+
+  // ===== Filter tabs =====
+  renderFilterTabs() {
+    const container = document.getElementById('filter-tabs');
+    const cats = [{ id: 'all', name: '全部', icon: '✨', color: '#64748b' }, ...state.categories];
+    container.innerHTML = cats.map(c => {
+      const active = state.filter === c.id;
+      return `<button onclick="app.setFilter('${c.id}')" class="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${active ? 'text-white' : 'bg-white text-slate-400 border border-slate-200'}"
+        ${active ? `style="background:${c.color}"` : ''}>
+        ${c.icon} ${c.name}
+      </button>`;
+    }).join('');
+  },
+
+  setFilter(f) { state.filter = f; this.saveState(); this.renderFilterTabs(); this.renderList(); },
+
+  // ===== List =====
+  renderList() {
+    const sortSel = document.getElementById('sort-select');
+    if (sortSel) sortSel.value = state.sort;
+
+    let reviews = [...state.reviews];
+    if (state.filter !== 'all') reviews = reviews.filter(r => r.categoryId === state.filter);
+
+    reviews.sort((a, b) => {
+      switch (state.sort) {
+        case 'dateAsc': return (a.date || '').localeCompare(b.date || '');
+        case 'ratingDesc': return (b.rating || 0) - (a.rating || 0);
+        case 'priceDesc': return (Number(b.price) || 0) - (Number(a.price) || 0);
+        case 'priceAsc': return (Number(a.price) || 0) - (Number(b.price) || 0);
+        default: return (b.date || '').localeCompare(a.date || ''); // dateDesc
+      }
+    });
+
+    const listEl = document.getElementById('review-list');
+    const emptyEl = document.getElementById('review-empty');
+    const countEl = document.getElementById('list-count');
+    if (countEl) countEl.textContent = `${reviews.length} 条点评`;
+
+    if (reviews.length === 0) {
+      listEl.innerHTML = '';
+      emptyEl.classList.remove('hidden');
+      return;
+    }
+    emptyEl.classList.add('hidden');
+
+    listEl.innerHTML = reviews.map(r => {
+      const cat = state.categories.find(c => c.id === r.categoryId) || { icon: '🍴', color: '#9ca3af', name: '其他' };
+      return `
+        <div class="review-card bg-white rounded-2xl p-3 mb-3 border border-slate-100 fade-in">
+          <div class="flex items-start gap-3">
+            ${r.photo ? `<img src="${r.photo}" class="w-16 h-16 rounded-xl object-cover flex-shrink-0">` : `<div class="w-16 h-16 rounded-xl flex items-center justify-center text-2xl flex-shrink-0" style="background:${cat.color}15">${cat.icon}</div>`}
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="font-bold text-sm text-slate-800 truncate">${this.escape(r.name)}</h3>
+                <span class="text-[10px] text-slate-400 whitespace-nowrap">${this.fmtDate(r.date)}</span>
+              </div>
+              <p class="text-[11px] text-slate-400 truncate">${this.escape(r.place || cat.name)}</p>
+              <div class="flex items-center gap-1 mt-1">
+                ${this.renderStars(r.rating)}
+                ${r.price != null && r.price !== '' ? `<span class="text-xs font-bold text-slate-500 ml-1">¥${this.fmtMoney(r.price)}</span>` : ''}
+              </div>
+              ${r.text ? `<p class="text-xs text-slate-500 mt-1.5 line-clamp-2">${this.escape(r.text)}</p>` : ''}
+              ${r.tags && r.tags.length ? `<div class="flex gap-1 mt-1.5 flex-wrap">${r.tags.map(t => `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400">${this.escape(t)}</span>`).join('')}</div>` : ''}
+            </div>
+            <div class="flex flex-col gap-1">
+              <button onclick="app.editReview('${r.id}')" class="text-slate-300 hover:text-rose-400 text-xs"><i class="fas fa-edit"></i></button>
+              <button onclick="app.deleteReview('${r.id}')" class="text-slate-300 hover:text-red-400 text-xs"><i class="fas fa-trash"></i></button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  },
+
+  // ===== Stats =====
+  renderStats() {
+    const container = document.getElementById('stats-container');
+    const reviews = state.reviews;
+    const total = reviews.length;
+    const totalSpent = reviews.reduce((s, r) => s + (Number(r.price) || 0), 0);
+    const avgRating = total > 0 ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / total).toFixed(1) : '0.0';
+    const avgPrice = total > 0 ? (totalSpent / total).toFixed(1) : '0.0';
+
+    // Category breakdown
+    const catStats = {};
+    state.categories.forEach(c => { catStats[c.id] = { name: c.name, icon: c.icon, color: c.color, count: 0, spent: 0 }; });
+    reviews.forEach(r => {
+      if (catStats[r.categoryId]) { catStats[r.categoryId].count++; catStats[r.categoryId].spent += (Number(r.price) || 0); }
+    });
+    const catArr = Object.values(catStats).filter(c => c.count > 0).sort((a, b) => b.count - a.count);
+
+    // Monthly trend
+    const monthly = {};
+    reviews.forEach(r => {
+      if (r.date) {
+        const m = r.date.slice(0, 7);
+        if (!monthly[m]) monthly[m] = { count: 0, spent: 0 };
+        monthly[m].count++; monthly[m].spent += (Number(r.price) || 0);
+      }
+    });
+    const monthArr = Object.entries(monthly).sort((a, b) => a[0].localeCompare(b[0])).slice(-6);
+    const maxMonthSpent = Math.max(...monthArr.map(m => m[1].spent), 1);
+
+    // Top rated
+    const topRated = [...reviews].filter(r => r.rating >= 4).sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 5);
+
+    container.innerHTML = `
+      <div class="fade-in space-y-4">
+        <!-- Overview -->
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-white rounded-2xl p-4 border border-slate-100">
+            <p class="text-[10px] text-slate-400 font-bold uppercase">累计花费</p>
+            <p class="text-xl font-black text-rose-500 mt-1">¥${this.fmtMoney(totalSpent)}</p>
+          </div>
+          <div class="bg-white rounded-2xl p-4 border border-slate-100">
+            <p class="text-[10px] text-slate-400 font-bold uppercase">平均单价</p>
+            <p class="text-xl font-black text-slate-700 mt-1">¥${this.fmtMoney(avgPrice)}</p>
+          </div>
+          <div class="bg-white rounded-2xl p-4 border border-slate-100">
+            <p class="text-[10px] text-slate-400 font-bold uppercase">平均评分</p>
+            <p class="text-xl font-black text-amber-500 mt-1">${avgRating} <i class="fas fa-star text-sm"></i></p>
+          </div>
+          <div class="bg-white rounded-2xl p-4 border border-slate-100">
+            <p class="text-[10px] text-slate-400 font-bold uppercase">总点评数</p>
+            <p class="text-xl font-black text-slate-700 mt-1">${total}</p>
+          </div>
+        </div>
+
+        <!-- Category breakdown -->
+        ${catArr.length > 0 ? `
+        <div class="bg-white rounded-2xl p-4 border border-slate-100">
+          <h3 class="text-xs font-bold text-slate-400 uppercase mb-3"><i class="fas fa-chart-pie mr-1"></i>分类占比</h3>
+          ${catArr.map(c => {
+            const pct = total > 0 ? (c.count / total * 100).toFixed(0) : 0;
+            return `
+              <div class="mb-2.5">
+                <div class="flex items-center justify-between text-xs mb-1">
+                  <span class="font-bold text-slate-600">${c.icon} ${c.name}</span>
+                  <span class="text-slate-400">${c.count}条 · ¥${this.fmtMoney(c.spent)} (${pct}%)</span>
+                </div>
+                <div class="h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div class="h-full rounded-full transition-all" style="width:${pct}%;background:${c.color}"></div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>` : ''}
+
+        <!-- Monthly trend -->
+        ${monthArr.length > 0 ? `
+        <div class="bg-white rounded-2xl p-4 border border-slate-100">
+          <h3 class="text-xs font-bold text-slate-400 uppercase mb-3"><i class="fas fa-chart-column mr-1"></i>月度花费趋势</h3>
+          <div class="flex items-end justify-between gap-2 h-32">
+            ${monthArr.map(m => `
+              <div class="flex-1 flex flex-col items-center gap-1">
+                <span class="text-[10px] text-slate-400 font-bold">¥${this.fmtMoney(m[1].spent)}</span>
+                <div class="w-full rounded-t-lg bg-rose-300 transition-all" style="height:${(m[1].spent / maxMonthSpent * 100)}%"></div>
+                <span class="text-[10px] text-slate-400">${m[0].slice(5)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>` : ''}
+
+        <!-- Top rated -->
+        ${topRated.length > 0 ? `
+        <div class="bg-white rounded-2xl p-4 border border-slate-100">
+          <h3 class="text-xs font-bold text-slate-400 uppercase mb-3"><i class="fas fa-trophy mr-1"></i>高分推荐</h3>
+          ${topRated.map(r => {
+            const cat = state.categories.find(c => c.id === r.categoryId) || { icon: '🍴' };
+            return `
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-lg">${cat.icon}</span>
+                <span class="text-sm font-bold text-slate-700 flex-1 truncate">${this.escape(r.name)}</span>
+                <span class="text-amber-400 text-xs">${this.renderStars(r.rating)}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>` : ''}
+      </div>
+    `;
+  },
+
+  // ===== Categories =====
+  renderCategories() {
+    const container = document.getElementById('category-list');
+    container.innerHTML = state.categories.map(c => {
+      const count = state.reviews.filter(r => r.categoryId === c.id).length;
+      return `
+        <div class="bg-white rounded-xl p-3 mb-2 border border-slate-100 flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style="background:${c.color}15">${c.icon}</div>
+          <div class="flex-1">
+            <p class="text-sm font-bold text-slate-700">${this.escape(c.name)}</p>
+            <p class="text-[11px] text-slate-400">${count} 条点评</p>
+          </div>
+          <button onclick="app.deleteCategory('${c.id}')" class="text-slate-300 hover:text-red-400 text-sm"><i class="fas fa-trash"></i></button>
+        </div>
+      `;
+    }).join('');
+  },
+
+  // ===== Review modal =====
+  openReviewModal(id) {
+    editId = id || null;
+    currentRating = 0;
+    currentPhoto = null;
+
+    // Populate categories
+    const catSel = document.getElementById('rv-category');
+    catSel.innerHTML = state.categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+
+    // Reset fields
+    document.getElementById('rv-name').value = '';
+    document.getElementById('rv-place').value = '';
+    document.getElementById('rv-price').value = '';
+    document.getElementById('rv-tags').value = '';
+    document.getElementById('rv-text').value = '';
+    document.getElementById('rv-date').value = this.todayStr();
+    document.getElementById('rv-photo-preview').classList.add('hidden');
+    document.getElementById('rv-photo-remove').classList.add('hidden');
+    this.setRating(0);
+
+    // If editing
+    if (id) {
+      const r = state.reviews.find(x => x.id === id);
+      if (r) {
+        document.getElementById('rv-name').value = r.name || '';
+        document.getElementById('rv-category').value = r.categoryId || '';
+        document.getElementById('rv-place').value = r.place || '';
+        document.getElementById('rv-price').value = r.price || '';
+        document.getElementById('rv-tags').value = (r.tags || []).join(', ');
+        document.getElementById('rv-text').value = r.text || '';
+        document.getElementById('rv-date').value = r.date || this.todayStr();
+        currentRating = r.rating || 0;
+        this.setRating(currentRating);
+        if (r.photo) {
+          currentPhoto = r.photo;
+          document.getElementById('rv-photo-preview').src = r.photo;
+          document.getElementById('rv-photo-preview').classList.remove('hidden');
+          document.getElementById('rv-photo-remove').classList.remove('hidden');
+        }
+      }
+    }
+
+    document.getElementById('review-modal').classList.remove('hidden');
+    document.getElementById('review-modal').classList.add('flex');
+    document.getElementById('rv-name').focus();
+  },
+
+  closeReviewModal() {
+    document.getElementById('review-modal').classList.add('hidden');
+    document.getElementById('review-modal').classList.remove('flex');
+  },
+
+  setRating(val) {
+    currentRating = val;
+    document.querySelectorAll('#rv-rating i').forEach(star => {
+      const v = parseInt(star.dataset.val);
+      if (v <= val) { star.className = 'fas fa-star text-2xl text-amber-400'; }
+      else { star.className = 'far fa-star text-2xl text-slate-300'; }
+    });
+  },
+
+  handlePhoto(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { this.toast('图片太大了 (>2MB)', 'err'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      currentPhoto = ev.target.result;
+      const preview = document.getElementById('rv-photo-preview');
+      preview.src = currentPhoto;
+      preview.classList.remove('hidden');
+      document.getElementById('rv-photo-remove').classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+  },
+
+  removePhoto() {
+    currentPhoto = null;
+    document.getElementById('rv-photo-preview').classList.add('hidden');
+    document.getElementById('rv-photo-remove').classList.add('hidden');
+  },
+
+  saveReview() {
+    const name = document.getElementById('rv-name').value.trim();
+    if (!name) { this.toast('请输入名称', 'err'); return; }
+    const review = {
+      id: editId || ('r' + Date.now()),
+      name,
+      categoryId: document.getElementById('rv-category').value,
+      place: document.getElementById('rv-place').value.trim(),
+      rating: currentRating,
+      price: parseFloat(document.getElementById('rv-price').value) || 0,
+      tags: document.getElementById('rv-tags').value.split(/[,，]/).map(t => t.trim()).filter(Boolean),
+      photo: currentPhoto,
+      text: document.getElementById('rv-text').value.trim(),
+      date: document.getElementById('rv-date').value || this.todayStr()
+    };
+
+    if (editId) {
+      const idx = state.reviews.findIndex(r => r.id === editId);
+      if (idx >= 0) state.reviews[idx] = review;
+    } else {
+      state.reviews.unshift(review);
+    }
+
+    this.saveState();
+    this.closeReviewModal();
+    this.renderAll();
+    this.toast(editId ? '✅ 已更新' : '✅ 已添加点评');
+  },
+
+  editReview(id) { this.openReviewModal(id); },
+
+  deleteReview(id) {
+    if (!confirm('删除这条点评？')) return;
+    state.reviews = state.reviews.filter(r => r.id !== id);
+    this.saveState();
+    this.renderAll();
+    this.toast('已删除');
+  },
+
+  // ===== Category modal =====
+  openCategoryModal() {
+    // Render icon picker
+    document.getElementById('cat-icon-picker').innerHTML = ICONS.map((ic, i) =>
+      `<button onclick="app.selectCatIcon(${i})" id="cat-icon-${i}" class="w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${i === 0 ? 'bg-rose-100 border-2 border-rose-400' : 'bg-slate-50'}">${ic}</button>`
+    ).join('');
+    // Render color picker
+    document.getElementById('cat-color-picker').innerHTML = COLORS.map((c, i) =>
+      `<button onclick="app.selectCatColor(${i})" id="cat-color-${i}" class="w-7 h-7 rounded-full ${i === 0 ? 'ring-2 ring-offset-2 ring-slate-400' : ''}" style="background:${c}"></button>`
+    ).join('');
+
+    document.getElementById('cat-name').value = '';
+    document.getElementById('cat-modal').classList.remove('hidden');
+    document.getElementById('cat-modal').classList.add('flex');
+    document.getElementById('cat-name').focus();
+  },
+
+  closeCategoryModal() {
+    document.getElementById('cat-modal').classList.add('hidden');
+    document.getElementById('cat-modal').classList.remove('flex');
+  },
+
+  selectCatIcon(i) {
+    ICONS.forEach((_, j) => {
+      const el = document.getElementById('cat-icon-' + j);
+      if (el) { el.className = `w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${j === i ? 'bg-rose-100 border-2 border-rose-400' : 'bg-slate-50'}`; }
+    });
+    this._catIconIdx = i;
+  },
+
+  selectCatColor(i) {
+    COLORS.forEach((_, j) => {
+      const el = document.getElementById('cat-color-' + j);
+      if (el) { el.className = `w-7 h-7 rounded-full ${j === i ? 'ring-2 ring-offset-2 ring-slate-400' : ''}`; el.style.background = COLORS[j]; }
+    });
+    this._catColorIdx = i;
+  },
+
+  saveCategory() {
+    const name = document.getElementById('cat-name').value.trim();
+    if (!name) { this.toast('请输入分类名', 'err'); return; }
+    const cat = {
+      id: 'c' + Date.now(),
+      name,
+      icon: ICONS[this._catIconIdx || 0],
+      color: COLORS[this._catColorIdx || 0]
+    };
+    state.categories.push(cat);
+    this.saveState();
+    this.closeCategoryModal();
+    this.renderAll();
+    this.toast('✅ 分类已创建');
+  },
+
+  deleteCategory(id) {
+    const count = state.reviews.filter(r => r.categoryId === id).length;
+    if (count > 0) { this.toast(`该分类下有 ${count} 条点评，无法删除`, 'err'); return; }
+    if (!confirm('删除此分类？')) return;
+    state.categories = state.categories.filter(c => c.id !== id);
+    this.saveState();
+    this.renderAll();
+  },
+
+  // ===== Import/Export =====
+  exportData() {
+    const data = { reviews: state.reviews, categories: state.categories, exportedAt: new Date().toISOString(), version: 1 };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `reviews_backup_${this.todayStr()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    this.toast('✅ 已导出');
+  },
+
+  importData(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        const importReviews = data.reviews || (data.state && data.state.reviews) || [];
+        const importCats = data.categories || (data.state && data.state.categories) || [];
+        const existingIds = new Set(state.reviews.map(r => r.id));
+        let added = 0;
+        importReviews.forEach(r => { if (!existingIds.has(r.id)) { state.reviews.push(r); added++; } });
+        const existingCatIds = new Set(state.categories.map(c => c.id));
+        importCats.forEach(c => { if (!existingCatIds.has(c.id)) state.categories.push(c); });
+        this.saveState();
+        this.renderAll();
+        this.toast(`✅ 导入 ${added} 条点评`);
+      } catch (err) {
+        this.toast('导入失败: ' + err.message, 'err');
+      }
+    };
+    reader.readAsText(file);
+  },
+
+  // ===== Helpers =====
+  todayStr() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]; },
+  fmtMoney(n) { if (n == null || isNaN(n)) n = 0; return Number(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 }); },
+  fmtDate(d) { if (!d) return ''; const today = this.todayStr(); if (d === today) return '今天'; const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1); const yStr = new Date(yesterday.getTime() - yesterday.getTimezoneOffset() * 60000).toISOString().split('T')[0]; if (d === yStr) return '昨天'; return d.slice(5); },
+  renderStars(n) { let s = ''; for (let i = 1; i <= 5; i++) { s += `<i class="fas fa-star ${i <= n ? 'text-amber-400' : 'text-slate-200'} text-[10px]"></i>`; } return s; },
+  escape(s) { return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); },
+
+  toast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl text-xs font-bold ' + (type === 'err' ? 'bg-red-500 text-white' : 'bg-slate-800 text-white');
+    setTimeout(() => { t.classList.add('hidden'); }, 2000);
+  }
+};
+
+app.init();
+</script>
+</body>
+</html>

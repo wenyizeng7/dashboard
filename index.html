@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<title>个人看板</title>
+<meta name="description" content="任务管理 + 闪念日记 + 归物追踪 + 小众点评 + 健康管理 + 垃圾桶，一站式个人看板">
+<!-- PWA (this shell is the installable app) -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="个人看板">
+<meta name="theme-color" content="#4f46e5">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="tailwind.css">
+<script src="sync.js"></script>
+<script src="lunar.js"></script>
+<style>
+  :root{
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --indigo: #4f46e5;
+    --indigo-light: #eef2ff;
+  }
+  *{ -webkit-tap-highlight-color: transparent; }
+  html,body{ height:100%; margin:0; overscroll-behavior:none; }
+  body{
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background:#f1f5f9; color:#1e293b; -webkit-font-smoothing:antialiased;
+  }
+  .no-scrollbar::-webkit-scrollbar{ display:none; }
+  .no-scrollbar{ -ms-overflow-style:none; scrollbar-width:none; }
+
+  /* App views */
+  .app-view{ display:none; height:100%; width:100%; }
+  .app-view.active{ display:flex; }
+
+  /* Nav items */
+  .nav-item{ transition: all .15s ease; }
+  .nav-item.active{ background: var(--indigo); color:#fff; box-shadow:0 6px 16px -4px rgba(79,70,229,.45); }
+  .nav-item:not(.active):hover{ background:#eef2ff; color:var(--indigo); }
+
+  /* iframe fill */
+  .frame-wrap{ width:100%; height:100%; }
+  .frame-wrap iframe{ width:100%; height:100%; border:0; display:block; background:#fff; }
+
+  /* card */
+  .card{ background:#fff; border:1px solid #e2e8f0; border-radius:18px; box-shadow:0 1px 3px rgba(15,23,42,.04); }
+  .stat-num{ font-weight:800; letter-spacing:-.02em; }
+
+  .fade-in{ animation: fade .35s ease; }
+  @keyframes fade{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+
+  .pri-dot{ width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+  .pri-high{ background:#ef4444; }
+  .pri-mid{ background:#f59e0b; }
+  .pri-low{ background:#10b981; }
+  .pri-none{ background:#cbd5e1; }
+
+  .chip{ font-size:11px; padding:2px 8px; border-radius:999px; font-weight:600; }
+</style>
+</head>
+<body>
+
+<div id="app-root" class="flex h-screen w-screen overflow-hidden">
+
+  <!-- ============ DESKTOP SIDEBAR ============ -->
+  <aside class="hidden md:flex flex-col w-[224px] shrink-0 bg-white border-r border-slate-200 h-full" style="padding-top:var(--safe-top)">
+    <div class="px-5 py-6 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-black text-lg shrink-0" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">板</div>
+      <div>
+        <div class="font-extrabold text-[15px] leading-tight">个人看板</div>
+        <div class="text-[11px] text-slate-400 leading-tight">任务 · 日记 · 归物 · 点评 · 健康 · 垃圾桶</div>
+      </div>
+    </div>
+    <nav class="flex-1 px-3 space-y-1.5">
+      <button onclick="switchView('dashboard')" id="nav-dashboard" class="nav-item active w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-600">
+        <span class="text-base">📊</span> 看板总览
+      </button>
+      <button onclick="switchView('tasks')" id="nav-tasks" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-600">
+        <span class="text-base">✅</span> 任务管理
+      </button>
+      <button onclick="switchView('diary')" id="nav-diary" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-600">
+        <span class="text-base">📖</span> 闪念日记
+      </button>
+      <button onclick="switchView('assets')" id="nav-assets" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-600">
+        <span class="text-base">📦</span> 归物追踪
+      </button>
+      <button onclick="switchView('reviews')" id="nav-reviews" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-600">
+        <span class="text-base">🍴</span> 小众点评
+      </button>
+      <button onclick="switchView('health')" id="nav-health" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-600">
+        <span class="text-base">💪</span> 健康管理
+      </button>
+      <button onclick="switchView('trash')" id="nav-trash" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-600">
+        <span class="text-base">🗑️</span> 垃圾桶
+      </button>
+    </nav>
+    <div class="p-4 border-t border-slate-100">
+      <button onclick="SyncEngine.openSyncModal()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50 transition group">
+        <span class="flex items-center gap-2 text-sm font-semibold text-slate-600 group-hover:text-indigo-600">☁️ 云同步</span>
+        <span id="sync-badge" class="text-[11px] font-semibold text-slate-400">☁︎ 未开启</span>
+      </button>
+      <div class="text-[11px] text-slate-400 leading-relaxed mt-2">未开启时数据仅存本机；开启后电脑与手机自动同步。</div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN AREA ============ -->
+  <main class="flex-1 flex flex-col h-full overflow-hidden relative">
+
+    <!-- Mobile top bar -->
+    <header class="md:hidden flex items-center justify-between px-4 bg-white border-b border-slate-200" style="padding-top:var(--safe-top); padding-bottom:10px; min-height:calc(48px + var(--safe-top))">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-white font-black text-sm" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">板</div>
+        <span id="mob-title" class="font-bold text-[15px]">看板总览</span>
+      </div>
+      <div class="flex items-center gap-1">
+        <button onclick="SyncEngine.openSyncModal()" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition" title="云同步">☁️</button>
+        <button onclick="switchView('dashboard')" id="refresh-btn" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition" title="刷新看板">↻</button>
+      </div>
+    </header>
+
+    <!-- ===== DASHBOARD VIEW ===== -->
+    <section id="view-dashboard" class="app-view active flex-col overflow-y-auto no-scrollbar">
+      <div class="flex-1 max-w-5xl w-full mx-auto px-4 md:px-8 py-5 md:py-8 fade-in" style="padding-bottom:calc(96px + var(--safe-bottom))">
+        <!-- Greeting -->
+        <div class="mb-6 flex items-end justify-between gap-3">
+          <div>
+            <h1 id="greeting" class="text-2xl md:text-3xl font-extrabold tracking-tight">你好</h1>
+            <p id="date-line" class="text-sm text-slate-400 mt-1"></p>
+          </div>
+          <div class="relative">
+            <button onclick="toggleDataMenu()" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-500 hover:text-indigo-600 hover:border-indigo-200 shadow-sm transition">
+              <i class="fas fa-database text-[11px]"></i> 数据
+              <i class="fas fa-chevron-down text-[9px]"></i>
+            </button>
+            <div id="data-menu" class="hidden absolute right-0 top-full mt-1.5 w-44 bg-white rounded-xl shadow-lg border border-slate-100 py-1.5 z-50">
+              <button onclick="exportAllData()" class="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition flex items-center gap-2"><i class="fas fa-download w-4 text-center"></i> 导出全部数据</button>
+              <button onclick="document.getElementById('import-all-input').click()" class="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition flex items-center gap-2"><i class="fas fa-upload w-4 text-center"></i> 导入全部数据</button>
+            </div>
+            <input type="file" id="import-all-input" accept=".json" class="hidden" onchange="importAllData(event)">
+          </div>
+        </div>
+
+        <!-- Today stat cards -->
+        <div class="mb-2 flex items-center gap-2"><span class="text-base">📅</span><h2 class="font-bold text-sm text-slate-500 uppercase tracking-wider">今日速览</h2></div>
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 mb-6">
+          <div class="card p-4 md:p-5">
+            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">今日待办</div>
+            <div class="flex items-end gap-1.5"><span id="stat-pending" class="stat-num text-3xl md:text-4xl text-indigo-600">0</span><span class="text-xs text-slate-400 mb-1">条</span></div>
+          </div>
+          <div class="card p-4 md:p-5">
+            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">今日已完成</div>
+            <div class="flex items-end gap-1.5"><span id="stat-done" class="stat-num text-3xl md:text-4xl text-emerald-500">0</span><span class="text-xs text-slate-400 mb-1">条</span></div>
+          </div>
+          <div class="card p-4 md:p-5">
+            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">⚠️ 过期</div>
+            <div class="flex items-end gap-1.5"><span id="stat-overdue" class="stat-num text-3xl md:text-4xl text-red-500">0</span><span class="text-xs text-slate-400 mb-1">条</span></div>
+          </div>
+          <div class="card p-4 md:p-5">
+            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">日记总篇</div>
+            <div class="flex items-end gap-1.5"><span id="stat-diaries" class="stat-num text-3xl md:text-4xl text-rose-500">0</span><span class="text-xs text-slate-400 mb-1">篇</span></div>
+          </div>
+          <div class="card p-4 md:p-5">
+            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">记录足迹</div>
+            <div class="flex items-end gap-1.5"><span id="stat-days" class="stat-num text-3xl md:text-4xl text-amber-500">0</span><span class="text-xs text-slate-400 mb-1">天</span></div>
+          </div>
+        </div>
+
+        <!-- Week & Month overview -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-6">
+          <!-- This week -->
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="font-bold text-base flex items-center gap-2"><span>📆</span> 本周概览</h2>
+              <span id="week-range" class="text-[11px] text-slate-400 font-semibold"></span>
+            </div>
+            <div class="grid grid-cols-4 gap-3 mb-3">
+              <div class="text-center"><div id="wk-done" class="stat-num text-2xl text-emerald-500">0</div><div class="text-[10px] text-slate-400 font-semibold mt-0.5">已完成</div></div>
+              <div class="text-center"><div id="wk-pending" class="stat-num text-2xl text-indigo-600">0</div><div class="text-[10px] text-slate-400 font-semibold mt-0.5">待办</div></div>
+              <div class="text-center"><div id="wk-rate" class="stat-num text-2xl text-violet-600">0%</div><div class="text-[10px] text-slate-400 font-semibold mt-0.5">完成率</div></div>
+              <div class="text-center"><div id="wk-diary" class="stat-num text-2xl text-rose-500">0</div><div class="text-[10px] text-slate-400 font-semibold mt-0.5">日记篇</div></div>
+            </div>
+            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden"><div id="wk-bar" class="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-500" style="width:0%"></div></div>
+          </div>
+          <!-- This month -->
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="font-bold text-base flex items-center gap-2"><span>🗓️</span> 本月概览</h2>
+              <span id="month-range" class="text-[11px] text-slate-400 font-semibold"></span>
+            </div>
+            <div class="grid grid-cols-4 gap-3 mb-3">
+              <div class="text-center"><div id="mo-done" class="stat-num text-2xl text-emerald-500">0</div><div class="text-[10px] text-slate-400 font-semibold mt-0.5">已完成</div></div>
+              <div class="text-center"><div id="mo-pending" class="stat-num text-2xl text-indigo-600">0</div><div class="text-[10px] text-slate-400 font-semibold mt-0.5">待办</div></div>
+              <div class="text-center"><div id="mo-rate" class="stat-num text-2xl text-violet-600">0%</div><div class="text-[10px] text-slate-400 font-semibold mt-0.5">完成率</div></div>
+              <div class="text-center"><div id="mo-diary" class="stat-num text-2xl text-rose-500">0</div><div class="text-[10px] text-slate-400 font-semibold mt-0.5">日记篇</div></div>
+            </div>
+            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden"><div id="mo-bar" class="h-full bg-gradient-to-r from-violet-400 to-violet-500 rounded-full transition-all duration-500" style="width:0%"></div></div>
+          </div>
+        </div>
+
+        <!-- Task completion trend (last 7 days) — MOVED TO BOTTOM -->
+        <!-- Row: Today tasks + This week tasks (larger list area) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+          <!-- Today tasks -->
+          <div class="card p-6 min-h-[900px]">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="font-bold text-lg flex items-center gap-2"><span>✅</span> 今日任务</h2>
+              <button onclick="goToTasksTab('view-tasks','today','今天')" class="chip bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition">进入任务 →</button>
+            </div>
+            <div id="today-tasks" class="space-y-2.5"></div>
+          </div>
+
+          <!-- This week tasks -->
+          <div class="card p-6 min-h-[900px]">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="font-bold text-lg flex items-center gap-2"><span>📋</span> 本周任务</h2>
+              <button onclick="goToTasksTab('view-tasks','next7','本周')" class="chip bg-violet-50 text-violet-600 hover:bg-violet-100 transition">查看全部 →</button>
+            </div>
+            <div id="week-tasks" class="space-y-2.5"></div>
+          </div>
+        </div>
+
+        <!-- Row: Habits + Focus (compact) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mt-4 md:mt-6">
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="font-bold text-sm flex items-center gap-2"><span>🔥</span> 今日习惯</h2>
+              <button onclick="goToTasksTab('view-habits',null,'习惯','create-habit')" class="chip bg-amber-50 text-amber-600 hover:bg-amber-100 transition text-xs">创建习惯 →</button>
+            </div>
+            <div id="today-habits" class="space-y-1"></div>
+          </div>
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="font-bold text-sm flex items-center gap-2"><span>🎯</span> 专注概览</h2>
+              <button onclick="goToTasksTab('view-focus',null,'专注')" class="chip bg-orange-50 text-orange-600 hover:bg-orange-100 transition text-xs">开始专注 →</button>
+            </div>
+            <div id="focus-overview" class="space-y-2"></div>
+          </div>
+        </div>
+
+        <!-- Row: Recent diaries + Upcoming -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mt-4 md:mt-6">
+          <!-- Recent diaries -->
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="font-bold text-base flex items-center gap-2"><span>📖</span> 最近日记</h2>
+              <button onclick="switchView('diary')" class="chip bg-rose-50 text-rose-500 hover:bg-rose-100 transition">写日记 →</button>
+            </div>
+            <div id="recent-diaries" class="space-y-3"></div>
+          </div>
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="font-bold text-base flex items-center gap-2"><span>⏳</span> 即将到来</h2>
+              <button onclick="goToTasksTab('view-countdown',null,'倒数日')" class="chip bg-slate-100 text-slate-600 hover:bg-slate-200 transition">查看 →</button>
+            </div>
+            <div id="upcoming-countdowns" class="space-y-2"></div>
+          </div>
+        </div>
+
+        <!-- Row: Assets overview -->
+        <div class="card p-5 mt-4 md:mt-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-base flex items-center gap-2"><span>📦</span> 归物概览</h2>
+            <button onclick="switchView('assets')" class="chip bg-sky-50 text-sky-600 hover:bg-sky-100 transition">管理物品 →</button>
+          </div>
+          <div id="assets-overview" class="space-y-2"></div>
+        </div>
+
+        <!-- Row: Reviews overview -->
+        <div class="card p-5 mt-4 md:mt-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-base flex items-center gap-2"><span>🍴</span> 小众点评</h2>
+            <button onclick="switchView('reviews')" class="chip bg-rose-50 text-rose-600 hover:bg-rose-100 transition">查看全部 →</button>
+          </div>
+          <div id="reviews-overview" class="space-y-2"></div>
+        </div>
+
+        <!-- Row: Health overview -->
+        <div class="card p-5 mt-4 md:mt-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-base flex items-center gap-2"><span>💪</span> 健康管理</h2>
+            <button onclick="switchView('health')" class="chip bg-teal-50 text-teal-600 hover:bg-teal-100 transition">进入健康 →</button>
+          </div>
+          <div id="health-overview" class="space-y-2"></div>
+        </div>
+
+        <!-- Row: Trash overview -->
+        <div class="card p-5 mt-4 md:mt-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-base flex items-center gap-2"><span>🗑️</span> 小念头</h2>
+            <button onclick="switchView('trash')" class="chip bg-stone-100 text-stone-600 hover:bg-stone-200 transition">记一笔 →</button>
+          </div>
+          <div id="trash-overview" class="space-y-2"></div>
+        </div>
+
+        <!-- Task completion trend (last 7 days) -->
+        <div class="card p-5 mt-4 md:mt-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-base flex items-center gap-2"><span>📈</span> 近 7 天完成趋势</h2>
+            <div class="flex items-center gap-3 text-[11px] text-slate-400 font-semibold">
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-400"></span>任务完成</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-rose-300"></span>日记篇数</span>
+            </div>
+          </div>
+          <div id="trend-chart" class="flex items-end justify-between gap-2 h-24"></div>
+          <div id="trend-labels" class="flex justify-between gap-2 mt-1.5"></div>
+        </div>
+
+        <p class="text-center text-[11px] text-slate-400 mt-8">数据由「任务管理」「闪念日记」「归物追踪」「小众点评」「健康管理」「垃圾桶」本地存储，看板自动汇总。</p>
+        <p id="debug-info" class="text-center text-[10px] text-slate-300 mt-2"></p>
+      </div>
+    </section>
+
+    <!-- ===== TASKS VIEW ===== -->
+    <section id="view-tasks" class="app-view">
+      <div class="frame-wrap"><iframe id="frame-tasks" src="app-tasks.html?v=25" allow="geolocation"></iframe></div>
+    </section>
+
+    <!-- ===== DIARY VIEW ===== -->
+    <section id="view-diary" class="app-view">
+      <div class="frame-wrap"><iframe id="frame-diary" src="app-diary.html?v=16" allow="geolocation"></iframe></div>
+    </section>
+
+    <!-- ===== ASSETS VIEW ===== -->
+    <section id="view-assets" class="app-view">
+      <div class="frame-wrap"><iframe id="frame-assets" src="app-assets.html?v=8" allow="geolocation"></iframe></div>
+    </section>
+
+    <!-- ===== REVIEWS VIEW ===== -->
+    <section id="view-reviews" class="app-view">
+      <div class="frame-wrap"><iframe id="frame-reviews" src="app-reviews.html?v=1" allow="geolocation"></iframe></div>
+    </section>
+
+    <!-- ===== HEALTH VIEW ===== -->
+    <section id="view-health" class="app-view">
+      <div class="frame-wrap"><iframe id="frame-health" src="app-health.html?v=4" allow="geolocation"></iframe></div>
+    </section>
+
+    <!-- ===== TRASH VIEW ===== -->
+    <section id="view-trash" class="app-view">
+      <div class="frame-wrap"><iframe id="frame-trash" src="app-trash.html?v=2" allow="geolocation"></iframe></div>
+    </section>
+
+    <!-- Mobile bottom tab bar -->
+    <nav class="md:hidden flex bg-white border-t border-slate-200 justify-around shrink-0" style="padding-bottom:var(--safe-bottom)">
+      <button onclick="switchView('dashboard')" id="tab-dashboard" class="flex flex-col items-center gap-0.5 py-2.5 px-5 transition" style="color:var(--indigo)">
+        <span class="text-lg leading-none">📊</span><span class="text-[10px] font-semibold">看板</span>
+      </button>
+      <button onclick="switchView('tasks')" id="tab-tasks" class="flex flex-col items-center gap-0.5 py-2.5 px-5 transition text-slate-400">
+        <span class="text-lg leading-none">✅</span><span class="text-[10px] font-semibold">任务</span>
+      </button>
+      <button onclick="switchView('diary')" id="tab-diary" class="flex flex-col items-center gap-0.5 py-2.5 px-5 transition text-slate-400">
+        <span class="text-lg leading-none">📖</span><span class="text-[10px] font-semibold">日记</span>
+      </button>
+      <button onclick="switchView('assets')" id="tab-assets" class="flex flex-col items-center gap-0.5 py-2.5 px-5 transition text-slate-400">
+        <span class="text-lg leading-none">📦</span><span class="text-[10px] font-semibold">归物</span>
+      </button>
+      <button onclick="switchView('reviews')" id="tab-reviews" class="flex flex-col items-center gap-0.5 py-2.5 px-5 transition text-slate-400">
+        <span class="text-lg leading-none">🍴</span><span class="text-[10px] font-semibold">点评</span>
+      </button>
+      <button onclick="switchView('health')" id="tab-health" class="flex flex-col items-center gap-0.5 py-2.5 px-5 transition text-slate-400">
+        <span class="text-lg leading-none">💪</span><span class="text-[10px] font-semibold">健康</span>
+      </button>
+      <button onclick="switchView('trash')" id="tab-trash" class="flex flex-col items-center gap-0.5 py-2.5 px-5 transition text-slate-400">
+        <span class="text-lg leading-none">🗑️</span><span class="text-[10px] font-semibold">垃圾桶</span>
+      </button>
+    </nav>
+  </main>
+</div>
+
+<script>
+/* ============ NAVIGATION ============ */
+const TITLES = { dashboard:'看板总览', tasks:'任务管理', diary:'闪念日记', assets:'归物追踪', reviews:'小众点评', health:'健康管理', trash:'垃圾桶' };
+let currentView = 'dashboard';
+
+const VIEW_KEYS = ['dashboard','tasks','diary','assets','reviews','health','trash'];
+
+function switchView(view){
+  currentView = view;
+  document.querySelectorAll('.app-view').forEach(s => s.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+
+  // desktop nav
+  VIEW_KEYS.forEach(v => {
+    document.getElementById('nav-'+v).classList.toggle('active', v===view);
+  });
+  // mobile tabs
+  VIEW_KEYS.forEach(v => {
+    const el = document.getElementById('tab-'+v);
+    if(v===view){ el.style.color = 'var(--indigo)'; el.classList.remove('text-slate-400'); }
+    else { el.style.color=''; el.classList.add('text-slate-400'); }
+  });
+  document.getElementById('mob-title').innerText = TITLES[view];
+
+  if(view === 'dashboard'){
+    renderDashboard();
+    // Re-render after 400ms to catch debounced saves from iframes (tasks app saves with 300ms debounce)
+    clearTimeout(window._dashDelayTimer);
+    window._dashDelayTimer = setTimeout(renderDashboard, 400);
+  }
+  // 切到任务/日记/归物时，通知 iframe 从 localStorage 重新加载数据（确保显示最新同步数据）
+  if(view === 'tasks' && window.SyncEngine && SyncEngine.refreshIframe){
+    setTimeout(function(){ SyncEngine.refreshIframe('frame-tasks'); }, 150);
+  }
+  if(view === 'diary' && window.SyncEngine && SyncEngine.refreshIframe){
+    setTimeout(function(){ SyncEngine.refreshIframe('frame-diary'); }, 150);
+  }
+  if(view === 'assets' && window.SyncEngine && SyncEngine.refreshIframe){
+    setTimeout(function(){ SyncEngine.refreshIframe('frame-assets'); }, 150);
+  }
+  if(view === 'reviews' && window.SyncEngine && SyncEngine.refreshIframe){
+    setTimeout(function(){ SyncEngine.refreshIframe('frame-reviews'); }, 150);
+  }
+  if(view === 'health' && window.SyncEngine && SyncEngine.refreshIframe){
+    setTimeout(function(){ SyncEngine.refreshIframe('frame-health'); }, 150);
+  }
+  if(view === 'trash' && window.SyncEngine && SyncEngine.refreshIframe){
+    setTimeout(function(){ SyncEngine.refreshIframe('frame-trash'); }, 150);
+  }
+  window.scrollTo(0,0);
+}
+
+/* 跳转到任务管理的指定模块（习惯/专注/倒数日/今日任务/未来7天） */
+function goToTasksTab(viewId, filterId, title, action){
+  switchView('tasks');
+  var frame = document.getElementById('frame-tasks');
+  if(!frame) return;
+
+  // Send nav message with retries — iframe may not have loaded yet on first visit
+  var tryNav = function(attempt){
+    if(!frame.contentWindow) {
+      if(attempt < 8) setTimeout(function(){ tryNav(attempt+1); }, 300);
+      return;
+    }
+    frame.contentWindow.postMessage({ type: 'nav-to-tab', viewId: viewId, filterId: filterId, title: title, action: action || null }, '*');
+    // Retry up to 5 times to catch the iframe finishing load
+    if(attempt < 5) setTimeout(function(){ tryNav(attempt+1); }, 400);
+  };
+  // Small initial delay to let switchView make the iframe visible
+  setTimeout(function(){ tryNav(0); }, 100);
+}
+
+/* ============ DATA HELPERS ============ */
+function getTodayStr(){
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().split('T')[0];
+}
+
+function loadTasksState(){
+  try{ return JSON.parse(localStorage.getItem('ticktick_pro_state') || '{}'); }
+  catch(e){ return {}; }
+}
+function loadDiaries(){
+  try{ const a = JSON.parse(localStorage.getItem('dayone_premium_diaries') || '[]'); return Array.isArray(a)? a : []; }
+  catch(e){ return []; }
+}
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ============ DASHBOARD RENDER ============ */
+function renderDashboard(){
+  const tState = loadTasksState();
+  const tasks = tState.tasks || [];
+  const habits = tState.habits || [];
+  const countdowns = tState.countdowns || [];
+  const diaries = loadDiaries();
+  const today = getTodayStr();
+
+  // greeting
+  const h = new Date().getHours();
+  let g = '晚上好';
+  if(h < 6) g = '夜深了';
+  else if(h < 11) g = '早上好';
+  else if(h < 14) g = '中午好';
+  else if(h < 18) g = '下午好';
+  document.getElementById('greeting').innerText = g + ' 👋';
+  document.getElementById('date-line').innerText = new Date().toLocaleDateString('zh-CN', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+
+  // task stats
+  const todayTasks = tasks.filter(t => t.startDate === today || (t.startDate <= today && t.endDate >= today));
+  const pending = todayTasks.filter(t => !t.completed);
+  const done = todayTasks.filter(t => t.completed);
+  const overdueTasks = tasks.filter(t => t.startDate < today && !t.completed && !(t.startDate <= today && t.endDate >= today));
+  document.getElementById('stat-pending').innerText = pending.length;
+  document.getElementById('stat-done').innerText = done.length;
+  const overdueEl = document.getElementById('stat-overdue');
+  if(overdueEl) overdueEl.innerText = overdueTasks.length;
+
+  // diary stats
+  document.getElementById('stat-diaries').innerText = diaries.length;
+  const uniqueDays = new Set(diaries.map(d => new Date(d.timestamp).toDateString())).size;
+  document.getElementById('stat-days').innerText = uniqueDays;
+
+  // ===== Weekly & Monthly stats =====
+  const now = new Date();
+  // Week range: Monday to Sunday (CN convention)
+  const dayIdx = (now.getDay() + 6) % 7; // 0=Mon
+  const weekStart = new Date(now); weekStart.setHours(0,0,0,0); weekStart.setDate(now.getDate() - dayIdx);
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23,59,59,999);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  const inRange = (dStr, s, e) => {
+    const t = new Date(dStr); if(isNaN(t)) return false;
+    return t >= s && t <= e;
+  };
+  const inRangeTs = (ts, s, e) => { const t = new Date(ts); return t >= s && t <= e; };
+
+  // week tasks (by scheduled date)
+  const wkTasks = tasks.filter(t => inRange(t.startDate, weekStart, weekEnd));
+  const wkDone = wkTasks.filter(t => t.completed).length;
+  const wkPending = wkTasks.filter(t => !t.completed).length;
+  const wkTotal = wkTasks.length;
+  const wkRate = wkTotal ? Math.round(wkDone / wkTotal * 100) : 0;
+  const wkDiary = diaries.filter(d => inRangeTs(d.timestamp, weekStart, weekEnd)).length;
+
+  // month tasks
+  const moTasks = tasks.filter(t => inRange(t.startDate, monthStart, monthEnd));
+  const moDone = moTasks.filter(t => t.completed).length;
+  const moPending = moTasks.filter(t => !t.completed).length;
+  const moTotal = moTasks.length;
+  const moRate = moTotal ? Math.round(moDone / moTotal * 100) : 0;
+  const moDiary = diaries.filter(d => inRangeTs(d.timestamp, monthStart, monthEnd)).length;
+
+  document.getElementById('wk-done').innerText = wkDone;
+  document.getElementById('wk-pending').innerText = wkPending;
+  document.getElementById('wk-rate').innerText = wkRate + '%';
+  document.getElementById('wk-diary').innerText = wkDiary;
+  document.getElementById('wk-bar').style.width = wkRate + '%';
+  document.getElementById('mo-done').innerText = moDone;
+  document.getElementById('mo-pending').innerText = moPending;
+  document.getElementById('mo-rate').innerText = moRate + '%';
+  document.getElementById('mo-diary').innerText = moDiary;
+  document.getElementById('mo-bar').style.width = moRate + '%';
+  document.getElementById('week-range').innerText =
+    weekStart.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'}) + ' - ' + weekEnd.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'});
+  document.getElementById('month-range').innerText =
+    now.toLocaleDateString('zh-CN',{year:'numeric',month:'long'});
+
+  // ===== 7-day completion trend =====
+  const trendEl = document.getElementById('trend-chart');
+  const labelEl = document.getElementById('trend-labels');
+  const days7 = [];
+  for(let i = 6; i >= 0; i--){
+    const dd = new Date(now); dd.setDate(now.getDate() - i); dd.setHours(0,0,0,0);
+    const ds = new Date(dd.getTime() - dd.getTimezoneOffset()*60000).toISOString().split('T')[0];
+    const dayDone = tasks.filter(t => t.startDate === ds && t.completed).length;
+    const dayDiary = diaries.filter(d => {
+      const dt = new Date(d.timestamp);
+      return dt.toDateString() === dd.toDateString();
+    }).length;
+    days7.push({ ds, dd, done: dayDone, diary: dayDiary });
+  }
+  const maxVal = Math.max(1, ...days7.map(x => Math.max(x.done, x.diary)));
+  trendEl.innerHTML = days7.map(x => {
+    const dH = Math.max(2, (x.done / maxVal) * 100);
+    const diaH = Math.max(2, (x.diary / maxVal) * 100);
+    const isToday = x.dd.toDateString() === now.toDateString();
+    return `<div class="flex-1 flex flex-col items-center gap-1 group relative">
+      <div class="flex items-end gap-0.5 h-20">
+        <div class="w-2.5 md:w-3 rounded-t bg-emerald-400 group-hover:bg-emerald-500 transition-all" style="height:${dH}%" title="完成 ${x.done}"></div>
+        <div class="w-2.5 md:w-3 rounded-t bg-rose-300 group-hover:bg-rose-400 transition-all" style="height:${diaH}%" title="日记 ${x.diary}"></div>
+      </div>
+      ${isToday ? '<div class="w-1 h-1 rounded-full bg-indigo-500"></div>' : '<div class="w-1 h-1"></div>'}
+    </div>`;
+  }).join('');
+  labelEl.innerHTML = days7.map(x => {
+    const wd = ['日','一','二','三','四','五','六'][x.dd.getDay()];
+    const isToday = x.dd.toDateString() === now.toDateString();
+    return `<div class="flex-1 text-center text-[10px] ${isToday?'text-indigo-600 font-bold':'text-slate-400'}">${x.dd.getMonth()+1}/${x.dd.getDate()}<br>${wd}</div>`;
+  }).join('');
+
+  // today tasks list
+  const ttEl = document.getElementById('today-tasks');
+  if(pending.length === 0 && done.length === 0 && overdueTasks.length === 0){
+    ttEl.innerHTML = '<div class="text-sm text-slate-400 py-6 text-center">今天还没有安排任务<br><button onclick="goToTasksTab(\'view-tasks\',\'today\',\'今天\',\'create-task\')" class="text-indigo-500 font-semibold mt-1">去添加任务</button></div>';
+  } else {
+    const priClass = (p) => p==='high'?'pri-high':p==='mid'?'pri-mid':p==='low'?'pri-low':'pri-none';
+    let html = '';
+    // Show overdue tasks first
+    if(overdueTasks.length > 0) {
+      html += '<div class="text-xs font-bold text-red-500 mb-1 flex items-center gap-1"><i class="fas fa-exclamation-circle"></i> 过期 (' + overdueTasks.length + ')</div>';
+      overdueTasks.slice(0,10).forEach(t => {
+        html += `<div onclick="goToTasksTab('view-tasks','today','今天')" class="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-red-50 transition cursor-pointer">
+          <span class="pri-dot ${priClass(t.priority)}"></span>
+          <span class="flex-1 text-base text-slate-700 truncate">${escapeHtml(t.title)}</span>
+          <span class="text-xs text-red-400 font-semibold shrink-0">${t.startDate.slice(5)}</span>
+        </div>`;
+      });
+      if(overdueTasks.length > 10) html += `<div class="text-xs text-slate-400 px-2 pt-1">还有 ${overdueTasks.length-10} 条过期未显示…</div>`;
+      html += '<div class="border-t border-slate-100 my-2"></div>';
+    }
+    pending.slice(0,20).forEach(t => {
+      html += `<div class="flex items-center gap-3 py-2.5 px-2 rounded-lg hover:bg-slate-50 transition">
+        <span class="pri-dot ${priClass(t.priority)}"></span>
+        <span class="flex-1 text-base text-slate-700 truncate">${escapeHtml(t.title)}</span>
+      </div>`;
+    });
+    if(pending.length === 0 && done.length > 0){
+      html += '<div class="text-sm text-emerald-500 font-semibold py-2 px-2">✨ 今日任务已全部完成！</div>';
+    }
+    if(pending.length > 20) html += `<div class="text-xs text-slate-400 px-2 pt-1">还有 ${pending.length-20} 条未显示…</div>`;
+    ttEl.innerHTML = html;
+  }
+
+  // ===== Week tasks list (本周任务) =====
+  const wtEl = document.getElementById('week-tasks');
+  if(wtEl){
+    const priClass2 = (p) => p==='high'?'pri-high':p==='mid'?'pri-mid':p==='low'?'pri-low':'pri-none';
+    // 本周未完成任务 + 过期任务，按日期排序，最多显示 20 条
+    const weekPending = tasks
+      .filter(t => !t.completed && ((inRange(t.startDate, weekStart, weekEnd)) || (t.startDate < today)))
+      .sort((a,b) => (a.startDate||'').localeCompare(b.startDate||''));
+    if(weekPending.length === 0){
+      wtEl.innerHTML = '<div class="text-sm text-slate-400 py-6 text-center">本周暂无待办任务<br><button onclick="goToTasksTab(\'view-tasks\',\'today\',\'今天\',\'create-task\')" class="text-violet-500 font-semibold mt-1">去添加任务</button></div>';
+    } else {
+      let whtml = '';
+      weekPending.slice(0,20).forEach(t => {
+        const tDate = new Date(t.startDate);
+        const isToday = t.startDate === today;
+        const isOverdue = t.startDate < today;
+        const dayLabel = isToday ? '今天' : (isOverdue ? '过期 ' + t.startDate.slice(5) : (tDate.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'}) + ' ' + ['日','一','二','三','四','五','六'][tDate.getDay()]));
+        whtml += `<div onclick="goToTasksTab('view-tasks','today','今天')" class="flex items-center gap-3 py-2.5 px-2 rounded-lg ${isOverdue?'hover:bg-red-50':'hover:bg-slate-50'} transition cursor-pointer">
+          <span class="pri-dot ${priClass2(t.priority)}"></span>
+          <span class="flex-1 text-base ${isOverdue?'text-red-600':'text-slate-700'} truncate">${escapeHtml(t.title)}</span>
+          <span class="text-xs ${isToday?'text-indigo-500 font-bold':isOverdue?'text-red-400 font-bold':'text-slate-400'} shrink-0">${dayLabel}</span>
+        </div>`;
+      });
+      if(weekPending.length > 20) whtml += `<div class="text-xs text-slate-400 px-2 pt-1">还有 ${weekPending.length-20} 条未显示…</div>`;
+      wtEl.innerHTML = whtml;
+    }
+  }
+
+  // recent diaries
+  const rdEl = document.getElementById('recent-diaries');
+  const sorted = [...diaries].sort((a,b) => b.timestamp - a.timestamp).slice(0,3);
+  if(sorted.length === 0){
+    rdEl.innerHTML = '<div class="text-sm text-slate-400 py-6 text-center">还没有日记记录<br><button onclick="switchView(\'diary\')" class="text-rose-500 font-semibold mt-1">写下第一篇</button></div>';
+  } else {
+    rdEl.innerHTML = sorted.map(d => {
+      const dt = new Date(d.timestamp);
+      const dateStr = dt.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'});
+      const mood = d.mood ? d.mood.split(' ')[0] : '📝';
+      const title = escapeHtml(d.title || '无标题');
+      const preview = escapeHtml((d.content || '').slice(0,50));
+      const photo = d.photo ? `<div class="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden shrink-0"><img src="${d.photo}" class="w-full h-full object-cover"></div>` : '';
+      return `<div onclick="switchView('diary')" class="flex gap-3 py-2 px-2 rounded-lg hover:bg-slate-50 transition cursor-pointer">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-0.5"><span class="text-base">${mood}</span><span class="text-[11px] text-slate-400 font-semibold">${dateStr}</span></div>
+          <div class="text-sm font-semibold text-slate-700 truncate">${title}</div>
+          <div class="text-xs text-slate-400 truncate">${preview}</div>
+        </div>${photo}
+      </div>`;
+    }).join('');
+  }
+
+  // habits today (compact)
+  const hEl = document.getElementById('today-habits');
+  if(habits.length === 0){
+    hEl.innerHTML = '<div class="text-xs text-slate-400 py-3 text-center">尚未创建习惯 <button onclick="goToTasksTab(\'view-habits\',null,\'习惯\',\'create-habit\')" class="text-amber-500 font-semibold">去创建</button></div>';
+  } else {
+    const doneCount = habits.filter(hb => hb.logs && hb.logs[today]).length;
+    let html = `<div class="text-[11px] text-slate-400 mb-1.5">已打卡 ${doneCount}/${habits.length}</div>`;
+    html += '<div class="flex flex-wrap gap-1.5">';
+    habits.slice(0,8).forEach(hb => {
+      const ok = hb.logs && hb.logs[today];
+      html += `<span onclick="goToTasksTab('view-habits',null,'习惯')" class="chip text-xs ${ok?'bg-emerald-50 text-emerald-600':'bg-slate-100 text-slate-400'} cursor-pointer hover:opacity-80 transition">${ok?'✓':'○'} ${escapeHtml(hb.name)}</span>`;
+    });
+    html += '</div>';
+    hEl.innerHTML = html;
+  }
+
+  // ===== Focus overview (专注概览) =====
+  const fEl = document.getElementById('focus-overview');
+  if(fEl){
+    // 今日专注时长 = 今日任务的 focusTime 总和
+    const todayFocusMins = todayTasks.reduce((sum, t) => sum + (t.focusTime || 0), 0);
+    // 本周专注时长
+    const weekFocusMins = wkTasks.reduce((sum, t) => sum + (t.focusTime || 0), 0);
+    // 关联任务数（有专注时间的今日任务）
+    const focusedTaskCount = todayTasks.filter(t => t.focusTime > 0).length;
+    // 番茄钟状态
+    const focusState = tState.focus || {};
+    const isRunning = focusState.active;
+    const mode = focusState.mode === 'stopwatch' ? '正计时' : '番茄钟';
+    
+    let fhtml = '';
+    // 番茄钟状态条 (compact)
+    if(isRunning){
+      const mins = Math.floor((focusState.timeLeft || 0) / 60);
+      const secs = (focusState.timeLeft || 0) % 60;
+      const timeStr = focusState.mode === 'stopwatch' 
+        ? `${Math.floor((focusState.timeLeft||0)/60)}:${String((focusState.timeLeft||0)%60).padStart(2,'0')}`
+        : `${mins}:${String(secs).padStart(2,'0')}`;
+      fhtml += `<div class="flex items-center gap-2 bg-orange-50 rounded-lg px-3 py-2 mb-2">
+        <div class="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></div>
+        <div class="flex-1 min-w-0">
+          <span class="text-xs font-bold text-orange-600">专注中 · ${mode}</span>
+          <span class="text-xs text-orange-400 ml-2">${timeStr}</span>
+        </div>
+      </div>`;
+    } else {
+      fhtml += `<div class="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2 mb-2">
+        <div class="w-2.5 h-2.5 rounded-full bg-slate-300"></div>
+        <span class="text-xs text-slate-400 flex-1">未在专注，点击开始</span>
+      </div>`;
+    }
+    // 专注统计 (compact inline)
+    fhtml += `<div class="flex items-center gap-4 px-1">
+      <div class="text-center">
+        <div class="text-lg font-bold text-orange-500">${todayFocusMins}<span class="text-[10px] text-slate-400 font-normal ml-0.5">m</span></div>
+        <div class="text-[10px] text-slate-400">今日</div>
+      </div>
+      <div class="w-px h-8 bg-slate-100"></div>
+      <div class="text-center">
+        <div class="text-lg font-bold text-violet-500">${weekFocusMins}<span class="text-[10px] text-slate-400 font-normal ml-0.5">m</span></div>
+        <div class="text-[10px] text-slate-400">本周</div>
+      </div>
+      <div class="w-px h-8 bg-slate-100"></div>
+      <div class="text-center">
+        <div class="text-lg font-bold text-emerald-500">${focusedTaskCount}</div>
+        <div class="text-[10px] text-slate-400">任务</div>
+      </div>
+    </div>`;
+    fEl.innerHTML = fhtml;
+  }
+
+  // upcoming countdowns
+  const cEl = document.getElementById('upcoming-countdowns');
+  const nowTs = Date.now();
+  function getNextCountdownDate(cd){
+    var baseDate = new Date(cd.date);
+    if(isNaN(baseDate.getTime())) return baseDate;
+    baseDate.setHours(0,0,0,0);
+    var today = new Date(); today.setHours(0,0,0,0);
+    if(!cd.repeat || cd.repeat === 'none') return baseDate;
+    // 农历每年重复
+    if(cd.calendar === 'lunar' && cd.repeat === 'annual' && typeof Lunar !== 'undefined') {
+      try {
+        var parts = cd.date.split('-');
+        var baseSolar = Solar.fromYmd(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]));
+        var baseLunar = baseSolar.getLunar();
+        var lunarMonth = Math.abs(baseLunar.getMonth());
+        var lunarDay = baseLunar.getDay();
+        var thisYear = today.getFullYear();
+        var candidate = Lunar.fromYmd(thisYear, lunarMonth, lunarDay).getSolar();
+        var candDate = new Date(candidate.getYear(), candidate.getMonth() - 1, candidate.getDay());
+        candDate.setHours(0,0,0,0);
+        if(candDate >= today) return candDate;
+        var next = Lunar.fromYmd(thisYear + 1, lunarMonth, lunarDay).getSolar();
+        var nextDate = new Date(next.getYear(), next.getMonth() - 1, next.getDay());
+        nextDate.setHours(0,0,0,0);
+        return nextDate;
+      } catch(e) { return baseDate; }
+    }
+    if(cd.repeat === 'weekly'){
+      var targetDay = baseDate.getDay();
+      if(today.getDay() === targetDay) return today;
+      var next = new Date(today);
+      var diff = (targetDay - today.getDay() + 7) % 7;
+      next.setDate(today.getDate() + diff);
+      return next;
+    }
+    if(cd.repeat === 'monthly'){
+      var targetDom = baseDate.getDate();
+      if(today.getDate() === targetDom) return today;
+      var daysInThisMonth = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
+      var dayThis = Math.min(targetDom, daysInThisMonth);
+      var candidate = new Date(today.getFullYear(), today.getMonth(), dayThis);
+      candidate.setHours(0,0,0,0);
+      if(candidate >= today) return candidate;
+      var daysInNextMonth = new Date(today.getFullYear(), today.getMonth()+2, 0).getDate();
+      var dayNext = Math.min(targetDom, daysInNextMonth);
+      return new Date(today.getFullYear(), today.getMonth()+1, dayNext);
+    }
+    if(cd.repeat === 'annual'){
+      var targetMonth = baseDate.getMonth();
+      var targetDay = baseDate.getDate();
+      var cand = new Date(today.getFullYear(), targetMonth, targetDay);
+      cand.setHours(0,0,0,0);
+      if(cand >= today) return cand;
+      return new Date(today.getFullYear()+1, targetMonth, targetDay);
+    }
+    return baseDate;
+  }
+  const upcoming = countdowns
+    .map(c => {
+      const nextDate = getNextCountdownDate(c);
+      return {...c, _t: nextDate.getTime()};
+    })
+    .filter(c => !isNaN(c._t) && c._t >= nowTs - 86400000)
+    .sort((a,b) => a._t - b._t)
+    .slice(0,4);
+  if(upcoming.length === 0){
+    cEl.innerHTML = '<div class="text-sm text-slate-400 py-4 text-center">暂无倒数日<br><button onclick="goToTasksTab(\'view-countdown\',null,\'倒数日\',\'create-countdown\')" class="text-indigo-500 font-semibold mt-1">去添加</button></div>';
+  } else {
+    cEl.innerHTML = upcoming.map(c => {
+      const days = Math.ceil((c._t - nowTs) / 86400000);
+      const label = days <= 0 ? '今天' : days === 1 ? '明天' : `还有 ${days} 天`;
+      const repeatIcon = c.repeat && c.repeat !== 'none' ? ' 🔁' : '';
+      const lunarIcon = c.calendar === 'lunar' ? ' 📅' : '';
+      return `<div onclick="goToTasksTab('view-countdown',null,'倒数日')" class="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-slate-50 transition cursor-pointer">
+        <span class="text-sm text-slate-700 truncate flex-1">${escapeHtml(c.title)}${lunarIcon}${repeatIcon}</span>
+        <span class="chip bg-indigo-50 text-indigo-600 ml-2">${label}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ===== Assets overview =====
+  const aEl = document.getElementById('assets-overview');
+  if(aEl){
+    let aState = {};
+    try { aState = JSON.parse(localStorage.getItem('asset_tracker_state') || '{}'); } catch(e){}
+    const assets = aState.assets || [];
+    const cats = aState.categories || [{ id:'uncat', name:'未分类', icon:'📦', color:'#9ca3af' }];
+    if(assets.length === 0){
+      aEl.innerHTML = '<div class="text-sm text-slate-400 py-4 text-center">还没有物品记录<br><button onclick="switchView(\'assets\')" class="text-sky-500 font-semibold mt-1">去添加第一件</button></div>';
+    } else {
+      const active = assets.filter(a => a.active !== false);
+      const assetCost = (a) => { let t = Number(a.price)||0; if(a.additionalCosts) t += a.additionalCosts.reduce((s,c)=>s+(Number(c.amount)||0),0); return t; };
+      const daysBetween = (d1,d2) => { const a=new Date(d1),b=new Date(d2); a.setHours(0,0,0,0); b.setHours(0,0,0,0); return Math.max(0,Math.round((b-a)/86400000)); };
+      const assetDays = (a) => { if(!a.purchaseDate) return 0; const end = a.sold ? new Date(a.sold.date) : new Date(); return daysBetween(a.purchaseDate, end); };
+      const assetDaily = (a) => { if(!a.active) return 0; const d = assetDays(a); return d<=0 ? 0 : assetCost(a)/d; };
+      const totalValue = active.reduce((s,a)=>s+assetCost(a),0);
+      const dailyTotal = active.reduce((s,a)=>s+assetDaily(a),0);
+      const retired = assets.filter(a => !a.active).length;
+      // top 4 by daily cost
+      const top = active.slice().sort((a,b)=>assetDaily(b)-assetDaily(a)).slice(0,4);
+      let summary = `<div class="bg-sky-50 rounded-xl p-3">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-2xl font-extrabold text-sky-600 tabular-nums leading-tight">¥${totalValue.toLocaleString('zh-CN',{maximumFractionDigits:0})}</div>
+            <div class="text-[11px] text-slate-400 font-medium">在役总值</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold text-emerald-500 tabular-nums leading-tight">¥${dailyTotal.toFixed(2)}</div>
+            <div class="text-[11px] text-slate-400 font-medium">日均 / 天</div>
+          </div>
+        </div>
+        <div class="flex justify-around mt-2.5 pt-2.5 border-t border-sky-100">
+          <div class="text-center"><span class="text-sm font-bold text-violet-500">${active.length}</span> <span class="text-[10px] text-slate-400">在役</span></div>
+          <div class="text-center"><span class="text-sm font-bold text-slate-400">${retired}</span> <span class="text-[10px] text-slate-400">退役</span></div>
+        </div>
+      </div>`;
+      let listHtml = top.map(a => {
+        const cat = cats.find(c=>c.id===(a.categoryId||'uncat')) || cats[0];
+        const daily = assetDaily(a);
+        const days = assetDays(a);
+        return `<div onclick="switchView('assets')" class="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-slate-50 transition cursor-pointer">
+          <div class="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style="background:${cat.color}1a">${a.icon||'📦'}</div>
+          <span class="flex-1 text-sm text-slate-700 truncate">${escapeHtml(a.name)}</span>
+          <span class="text-[11px] text-slate-400">${days}天</span>
+          <span class="text-xs font-bold text-sky-500">¥${daily.toFixed(2)}/天</span>
+        </div>`;
+      }).join('');
+      aEl.innerHTML = summary + listHtml;
+    }
+  }
+
+  // ===== Reviews overview =====
+  const rEl = document.getElementById('reviews-overview');
+  if(rEl){
+    let rState = {};
+    try { rState = JSON.parse(localStorage.getItem('reviews_pro_state') || '{}'); } catch(err){}
+    const reviews = rState.reviews || [];
+    const cats = rState.categories || [];
+    if(reviews.length === 0){
+      rEl.innerHTML = '<div class="text-sm text-slate-400 py-4 text-center">还没有点评记录<br><button onclick="switchView(\'reviews\')" class="text-rose-500 font-semibold mt-1">去记录第一份</button></div>';
+    } else {
+      const totalSpent = reviews.reduce((s,r) => s + (Number(r.price)||0), 0);
+      const avgRating = (reviews.reduce((s,r) => s + (r.rating||0), 0) / reviews.length).toFixed(1);
+      const thisMonth = reviews.filter(r => r.date && r.date.startsWith(today.slice(0,7))).length;
+      const recent = [...reviews].sort((a,b) => (b.date||'').localeCompare(a.date||'')).slice(0,3);
+      let summary = `<div class="bg-rose-50 rounded-xl p-3">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-xl font-extrabold text-rose-600">${reviews.length}</div>
+            <div class="text-[10px] text-slate-400 font-medium">总点评</div>
+          </div>
+          <div>
+            <div class="text-xl font-extrabold text-amber-600">${avgRating}<i class="fas fa-star text-[10px] ml-0.5"></i></div>
+            <div class="text-[10px] text-slate-400 font-medium">平均评分</div>
+          </div>
+        </div>
+        <div class="flex justify-between mt-2 pt-2 border-t border-rose-100 text-xs">
+          <span class="text-slate-500">累计 ¥${totalSpent.toLocaleString('zh-CN',{maximumFractionDigits:0})}</span>
+          <span class="text-slate-500">本月 ${thisMonth} 条</span>
+        </div>
+      </div>`;
+      let listHtml = recent.map(r => {
+        const cat = cats.find(c => c.id === r.categoryId) || {icon:'🍴',color:'#9ca3af'};
+        return `<div onclick="switchView('reviews')" class="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-slate-50 transition cursor-pointer">
+          <div class="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style="background:${cat.color}1a">${cat.icon||'🍴'}</div>
+          <span class="flex-1 text-sm text-slate-700 truncate">${escapeHtml(r.name)}</span>
+          <span class="text-amber-400 text-[10px]">${'★'.repeat(r.rating||0)}</span>
+          ${r.price ? `<span class="text-xs font-bold text-rose-500">¥${r.price}</span>` : ''}
+        </div>`;
+      }).join('');
+      rEl.innerHTML = summary + listHtml;
+    }
+  }
+
+  // ===== Health overview =====
+  const healthEl = document.getElementById('health-overview');
+  if(healthEl){
+    let hState = {};
+    try { hState = JSON.parse(localStorage.getItem('health_pro_state') || '{}'); } catch(err){}
+    const waterGoal = (hState.settings && hState.settings.waterGoal) || 8;
+    const todayWater = (hState.water && hState.water[today]) || 0;
+    const weights = (hState.weight || []).slice().sort((a,b) => a.date.localeCompare(b.date));
+    const latestWeight = weights.length > 0 ? weights[weights.length-1] : null;
+    const todayDiet = (hState.diet && hState.diet[today]) || {};
+    let todayCal = 0;
+    ['breakfast','lunch','dinner','snack'].forEach(m => { (todayDiet[m]||[]).forEach(i => { todayCal += (i.cal||0); }); });
+    const todayEx = (hState.exercise && hState.exercise[today]) || [];
+    const todayExCal = todayEx.reduce((s,e) => s + (e.cal||0), 0);
+
+    healthEl.innerHTML = `
+      <div class="bg-teal-50 rounded-xl p-3">
+        <div class="grid grid-cols-4 gap-2 text-center">
+          <div>
+            <div class="text-xl font-extrabold ${todayWater >= waterGoal ? 'text-emerald-500' : 'text-teal-600'}">${todayWater}<span class="text-xs text-slate-400">/${waterGoal}</span></div>
+            <div class="text-[10px] text-slate-400 font-medium">喝水杯</div>
+          </div>
+          <div>
+            <div class="text-xl font-extrabold text-indigo-600">${latestWeight ? latestWeight.value.toFixed(1) : '—'}</div>
+            <div class="text-[10px] text-slate-400 font-medium">体重kg</div>
+          </div>
+          <div>
+            <div class="text-xl font-extrabold text-amber-500">${todayCal}</div>
+            <div class="text-[10px] text-slate-400 font-medium">摄入kcal</div>
+          </div>
+          <div>
+            <div class="text-xl font-extrabold text-rose-500">${todayExCal}</div>
+            <div class="text-[10px] text-slate-400 font-medium">运动kcal</div>
+          </div>
+        </div>
+      </div>
+      <div class="text-xs text-slate-400 px-1">每日喝水打卡 · 体重追踪 · 三餐食谱 · 运动记录</div>`;
+  }
+
+  // ===== Trash overview =====
+  const trashEl = document.getElementById('trash-overview');
+  if(trashEl){
+    let tState = {};
+    try { tState = JSON.parse(localStorage.getItem('trash_pro_state') || '{}'); } catch(err){}
+    const thoughts = tState.thoughts || [];
+    if(thoughts.length === 0){
+      trashEl.innerHTML = '<div class="text-sm text-slate-400 py-3 text-center">还没有任何小念头<br><button onclick="switchView(\'trash\')" class="text-stone-600 font-semibold mt-1">丢一个进去</button></div>';
+    } else {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const todayTs = today.getTime();
+      const todayCount = thoughts.filter(t => t.ts >= todayTs).length;
+      const catIcons = { work: '💼', life: '🌿', study: '📚', world: '🌍' };
+      const catCounts = { work:0, life:0, study:0, world:0 };
+      thoughts.forEach(t => { if(catCounts[t.cat] !== undefined) catCounts[t.cat]++; });
+      const recent = thoughts.slice(0, 3);
+      let summary = `<div class="bg-stone-100 rounded-xl p-3">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-xl font-extrabold text-stone-700">${thoughts.length}</div>
+            <div class="text-[10px] text-slate-500 font-medium">总念头</div>
+          </div>
+          <div>
+            <div class="text-xl font-extrabold text-emerald-600">${todayCount}</div>
+            <div class="text-[10px] text-slate-500 font-medium">今日新增</div>
+          </div>
+        </div>
+        <div class="flex justify-around mt-2 pt-2 border-t border-stone-200 text-xs">
+          <span class="text-slate-500">${catIcons.work} ${catCounts.work}</span>
+          <span class="text-slate-500">${catIcons.life} ${catCounts.life}</span>
+          <span class="text-slate-500">${catIcons.study} ${catCounts.study}</span>
+          <span class="text-slate-500">${catIcons.world} ${catCounts.world}</span>
+        </div>
+      </div>`;
+      let listHtml = recent.map(t => {
+        const dateStr = new Date(t.ts).toISOString().slice(5,10);
+        const preview = (t.text || '').slice(0, 40) + ((t.text || '').length > 40 ? '…' : '');
+        return `<div onclick="switchView('trash')" class="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-slate-50 transition cursor-pointer">
+          <span class="text-sm shrink-0">${catIcons[t.cat] || '💭'}</span>
+          <span class="flex-1 text-sm text-slate-700 truncate">${escapeHtml(preview)}</span>
+          <span class="text-[10px] text-slate-400">${dateStr}</span>
+        </div>`;
+      }).join('');
+      trashEl.innerHTML = summary + listHtml;
+    }
+  }
+
+  // Debug info — visible at bottom of dashboard
+  const dbg = document.getElementById('debug-info');
+  if(dbg){
+    const todayMatch = tasks.filter(t => t.startDate === today).length;
+    dbg.innerText = `${DASH_VERSION} | 总任务:${tasks.length} | 今日匹配:${todayMatch} | 今日:${today} | 日记:${diaries.length}`;
+  }
+}
+
+/* ============ INIT ============ */
+const DASH_VERSION = 'v52-autojoin';
+
+// Debounced dashboard refresh — triggered by iframe postMessage or storage events
+let _dashRefreshTimer = null;
+function requestDashboardRefresh(){
+  clearTimeout(_dashRefreshTimer);
+  _dashRefreshTimer = setTimeout(() => {
+    if(currentView === 'dashboard') renderDashboard();
+  }, 120);
+}
+
+/* ============ DATA IMPORT / EXPORT (all modules) ============ */
+const ALL_DATA_KEYS = [
+  { key: 'ticktick_pro_state',        label: '任务管理' },
+  { key: 'dayone_premium_diaries',    label: '闪念日记' },
+  { key: 'asset_tracker_state',       label: '归物追踪' },
+  { key: 'reviews_pro_state',         label: '小众点评' },
+  { key: 'health_pro_state',          label: '健康管理' },
+  { key: 'trash_pro_state',           label: '垃圾桶' }
+];
+
+function toggleDataMenu(){
+  const m = document.getElementById('data-menu');
+  m.classList.toggle('hidden');
+  if(!m.classList.contains('hidden')){
+    setTimeout(() => {
+      document.addEventListener('click', function close(ev){
+        if(!m.contains(ev.target) && ev.target.closest('button')?.textContent.indexOf('数据') === -1){
+          m.classList.add('hidden');
+          document.removeEventListener('click', close);
+        }
+      });
+    }, 0);
+  }
+}
+
+function exportAllData(){
+  const data = { _meta: { app: '个人看板', exportedAt: new Date().toISOString(), version: DASH_VERSION }, modules: {} };
+  let totalItems = 0;
+  ALL_DATA_KEYS.forEach(m => {
+    const raw = localStorage.getItem(m.key);
+    if(raw){
+      data.modules[m.key] = { label: m.label, data: raw };
+      try { const parsed = JSON.parse(raw); totalItems += Array.isArray(parsed) ? parsed.length : (parsed.tasks?.length || parsed.reviews?.length || parsed.diaries?.length || 1); } catch(e){}
+    } else {
+      data.modules[m.key] = { label: m.label, data: null };
+    }
+  });
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const d = new Date();
+  a.href = url;
+  a.download = `dashboard-backup-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  document.getElementById('data-menu').classList.add('hidden');
+  alert('✅ 已导出全部数据（' + ALL_DATA_KEYS.map(m => m.label).join(' / ') + '）');
+}
+
+function importAllData(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  if(!confirm('⚠️ 导入将覆盖当前所有模块的数据，确定继续吗？\n\n建议先导出一份当前数据作为备份。')){
+    event.target.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      const data = JSON.parse(e.target.result);
+      if(!data.modules) throw new Error('文件格式不正确：缺少 modules 字段');
+      let restored = [];
+      ALL_DATA_KEYS.forEach(m => {
+        const entry = data.modules[m.key];
+        if(entry && entry.data){
+          localStorage.setItem(m.key, entry.data);
+          restored.push(m.label);
+        }
+      });
+      // 刷新所有 iframe
+      ['frame-tasks','frame-diary','frame-assets','frame-reviews','frame-health','frame-trash'].forEach(id => {
+        if(window.SyncEngine && SyncEngine.refreshIframe) SyncEngine.refreshIframe(id);
+      });
+      // 刷新看板
+      renderDashboard();
+      document.getElementById('data-menu').classList.add('hidden');
+      alert('✅ 导入成功！已恢复：' + restored.join(' / ') + '\n\n各模块将自动刷新显示新数据。');
+
+      // ===== 关键修复：导入后立即推送所有数据到云端 =====
+      // 写 localStorage 在父窗口不会触发 storage 事件（storage 事件只在跨文档时触发），
+      // 所以必须显式调用 forcePushAll() 同步推送到 Supabase，否则 pushCheckTimer 兜底不可靠。
+      if(window.SyncEngine && SyncEngine.isConfigured && SyncEngine.isConfigured()){
+        setTimeout(function(){
+          SyncEngine.forcePushAll().then(function(r){
+            if(r && r.ok){
+              console.log('[Sync] 导入后已推送', r.keys);
+            } else {
+              console.warn('[Sync] 导入后推送失败:', r && r.reason);
+            }
+          });
+        }, 200);
+      }
+    } catch(err){
+      alert('❌ 导入失败：' + err.message);
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// Listen for data-change messages from child iframes (tasks/diary apps)
+window.addEventListener('message', (e) => {
+  if(e.data && e.data.type === 'dashboard-refresh'){
+    requestDashboardRefresh();
+  }
+});
+
+// Also listen for storage events (fires when localStorage changes in other documents)
+window.addEventListener('storage', (e) => {
+  if(e.key === 'ticktick_pro_state' || e.key === 'dayone_premium_diaries' || e.key === 'asset_tracker_state' || e.key === 'reviews_pro_state' || e.key === 'health_pro_state' || e.key === 'trash_pro_state'){
+    requestDashboardRefresh();
+  }
+});
+
+// ===== POLLING: bulletproof data sync — check localStorage every 1s =====
+let _lastSnapshot = '';
+setInterval(() => {
+  if(currentView !== 'dashboard') return;
+  const snap = (localStorage.getItem('ticktick_pro_state')||'') + '||' + (localStorage.getItem('dayone_premium_diaries')||'') + '||' + (localStorage.getItem('asset_tracker_state')||'') + '||' + (localStorage.getItem('reviews_pro_state')||'') + '||' + (localStorage.getItem('health_pro_state')||'') + '||' + (localStorage.getItem('trash_pro_state')||'');
+  if(snap !== _lastSnapshot){
+    _lastSnapshot = snap;
+    renderDashboard();
+  }
+}, 1000);
+
+window.addEventListener('load', () => {
+  // Force cache busting: check stored version, clear caches if mismatch
+  if('serviceWorker' in navigator){
+    const storedVer = localStorage.getItem('_dash_ver');
+    if (storedVer && storedVer !== DASH_VERSION) {
+      // Version changed — aggressively clear all caches
+      caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          Promise.all(regs.map(r => r.unregister())).then(() => {
+            localStorage.setItem('_dash_ver', DASH_VERSION);
+            location.reload();
+          });
+        });
+      });
+    } else {
+      localStorage.setItem('_dash_ver', DASH_VERSION);
+    }
+    // Unregister old Service Workers
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(r => r.unregister());
+    });
+    // Re-register fresh SW
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+    // Auto-reload when new SW takes control
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      location.reload();
+    });
+  }
+  renderDashboard();
+  // Initialize snapshot
+  _lastSnapshot = (localStorage.getItem('ticktick_pro_state')||'') + '||' + (localStorage.getItem('dayone_premium_diaries')||'') + '||' + (localStorage.getItem('asset_tracker_state')||'') + '||' + (localStorage.getItem('reviews_pro_state')||'') + '||' + (localStorage.getItem('health_pro_state')||'') + '||' + (localStorage.getItem('trash_pro_state')||'');
+});
+
+// re-render dashboard when returning to it
+document.addEventListener('visibilitychange', () => { if(!document.hidden && currentView==='dashboard') renderDashboard(); });
+</script>
+<!-- Sync settings modal -->
+<div id="sync-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto no-scrollbar">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl z-10">
+      <h3 class="font-bold text-base flex items-center gap-2">☁️ 云同步设置</h3>
+      <button onclick="SyncEngine.closeSyncModal()" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100">✕</button>
+    </div>
+    <div class="p-5" id="sync-modal-body"></div>
+  </div>
+</div>
+
+</body>
+</html>

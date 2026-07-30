@@ -1,5 +1,5 @@
 // Service Worker for 个人看板 PWA - offline cache
-const CACHE = 'dashboard-v56';
+const CACHE = 'dashboard-v57';
 const ASSETS = [
   './',
   './index.html',

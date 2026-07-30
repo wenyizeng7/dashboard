@@ -404,8 +404,8 @@ const app = {
               ${r.tags && r.tags.length ? `<div class="flex gap-1 mt-1.5 flex-wrap">${r.tags.map(t => `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400">${this.escape(t)}</span>`).join('')}</div>` : ''}
             </div>
             <div class="flex flex-col gap-1">
-              <button onclick="app.editReview('${r.id}')" class="text-slate-300 hover:text-rose-400 text-xs"><i class="fas fa-edit"></i></button>
-              <button onclick="app.deleteReview('${r.id}')" class="text-slate-300 hover:text-red-400 text-xs"><i class="fas fa-trash"></i></button>
+              <button type="button" onclick="app.editReview('${r.id}')" aria-label="编辑" class="w-8 h-8 -mr-1 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 active:scale-90 transition"><i class="fas fa-edit"></i></button>
+              <button type="button" onclick="app.deleteReview('${r.id}')" aria-label="删除" class="w-8 h-8 -mr-1 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 active:scale-90 transition"><i class="fas fa-trash"></i></button>
             </div>
           </div>
         </div>
@@ -533,7 +533,7 @@ const app = {
             <p class="text-sm font-bold text-slate-700">${this.escape(c.name)}</p>
             <p class="text-[11px] text-slate-400">${count} 条点评</p>
           </div>
-          <button onclick="app.deleteCategory('${c.id}')" class="text-slate-300 hover:text-red-400 text-sm"><i class="fas fa-trash"></i></button>
+          <button type="button" onclick="app.deleteCategory('${c.id}')" aria-label="删除分类" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 active:scale-90 transition"><i class="fas fa-trash"></i></button>
         </div>
       `;
     }).join('');

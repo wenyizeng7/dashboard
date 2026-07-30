@@ -1345,6 +1345,16 @@
                 clearTimeout(this._saveTimer);
                 try {
                     const saved = localStorage.getItem('ticktick_pro_state');
+                    // 习惯独立存储到 habit_pro_state（避免和任务共用键导致同步时被任务覆盖）。
+                    // 旧版本习惯存在 ticktick_pro_state 里，首次加载时迁移到独立键。
+                    let habits = [];
+                    const habitRaw = localStorage.getItem('habit_pro_state');
+                    if (habitRaw) {
+                        try { habits = JSON.parse(habitRaw) || []; } catch (e) { habits = []; }
+                    } else if (saved) {
+                        try { const s = JSON.parse(saved); if (s && Array.isArray(s.habits)) habits = s.habits; } catch (e) {}
+                        if (habits.length) localStorage.setItem('habit_pro_state', JSON.stringify(habits));
+                    }
                     if (saved) {
                         _lastStateStr = saved; // 更新追踪值
                         const s = JSON.parse(saved);
@@ -1353,12 +1363,12 @@
                         state.tags = s.tags || [];
                         state.filters = s.filters || [];
                         state.tasks = s.tasks || [];
-                        state.habits = s.habits || [];
                         state.countdowns = s.countdowns || [];
                         if (s.focus) {
                             state.focus = Object.assign({}, state.focus, s.focus, { timer: null, active: false, sessionElapsed: 0 });
                         }
                     }
+                    state.habits = habits;
                 } catch(e) { console.error('Load state failed', e); }
             },
 
@@ -1368,12 +1378,16 @@
                     try {
                         const s = Object.assign({}, state);
                         delete s.focus.timer;
+                        // 习惯单独存到 habit_pro_state，避免和任务共用键在同步时被任务覆盖
+                        delete s.habits;
                         const str = JSON.stringify(s);
                         localStorage.setItem('ticktick_pro_state', str);
+                        localStorage.setItem('habit_pro_state', JSON.stringify(state.habits || []));
                         _lastStateStr = str; // 更新追踪值，避免轮询误触发
                         // Notify parent dashboard to refresh
                         if (window.parent && window.parent !== window) {
                             window.parent.postMessage({ type: 'dashboard-refresh', key: 'ticktick_pro_state' }, '*');
+                            window.parent.postMessage({ type: 'dashboard-refresh', key: 'habit_pro_state' }, '*');
                         }
                     } catch(e) {}
                 }, 300);

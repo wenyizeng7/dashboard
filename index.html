@@ -315,7 +315,7 @@
 
     <!-- ===== TASKS VIEW ===== -->
     <section id="view-tasks" class="app-view">
-      <div class="frame-wrap"><iframe id="frame-tasks" src="app-tasks.html?v=25" allow="geolocation"></iframe></div>
+      <div class="frame-wrap"><iframe id="frame-tasks" src="app-tasks.html?v=26" allow="geolocation"></iframe></div>
     </section>
 
     <!-- ===== DIARY VIEW ===== -->
@@ -996,7 +996,7 @@ function renderDashboard(){
 }
 
 /* ============ INIT ============ */
-const DASH_VERSION = 'v56-sync-room';
+const DASH_VERSION = 'v57-habit-key';
 
 // Debounced dashboard refresh — triggered by iframe postMessage or storage events
 let _dashRefreshTimer = null;
@@ -1014,7 +1014,8 @@ const ALL_DATA_KEYS = [
   { key: 'asset_tracker_state',       label: '归物追踪' },
   { key: 'reviews_pro_state',         label: '小众点评' },
   { key: 'health_pro_state',          label: '健康管理' },
-  { key: 'trash_pro_state',           label: '垃圾桶' }
+  { key: 'trash_pro_state',           label: '垃圾桶' },
+  { key: 'habit_pro_state',           label: '习惯打卡' }
 ];
 
 function toggleDataMenu(){
@@ -1125,7 +1126,7 @@ window.addEventListener('storage', (e) => {
 let _lastSnapshot = '';
 setInterval(() => {
   if(currentView !== 'dashboard') return;
-  const snap = (localStorage.getItem('ticktick_pro_state')||'') + '||' + (localStorage.getItem('dayone_premium_diaries')||'') + '||' + (localStorage.getItem('asset_tracker_state')||'') + '||' + (localStorage.getItem('reviews_pro_state')||'') + '||' + (localStorage.getItem('health_pro_state')||'') + '||' + (localStorage.getItem('trash_pro_state')||'');
+  const snap = (localStorage.getItem('ticktick_pro_state')||'') + '||' + (localStorage.getItem('dayone_premium_diaries')||'') + '||' + (localStorage.getItem('asset_tracker_state')||'') + '||' + (localStorage.getItem('reviews_pro_state')||'') + '||' + (localStorage.getItem('health_pro_state')||'') + '||' + (localStorage.getItem('trash_pro_state')||'') + '||' + (localStorage.getItem('habit_pro_state')||'');
   if(snap !== _lastSnapshot){
     _lastSnapshot = snap;
     renderDashboard();
@@ -1162,7 +1163,7 @@ window.addEventListener('load', () => {
   }
   renderDashboard();
   // Initialize snapshot
-  _lastSnapshot = (localStorage.getItem('ticktick_pro_state')||'') + '||' + (localStorage.getItem('dayone_premium_diaries')||'') + '||' + (localStorage.getItem('asset_tracker_state')||'') + '||' + (localStorage.getItem('reviews_pro_state')||'') + '||' + (localStorage.getItem('health_pro_state')||'') + '||' + (localStorage.getItem('trash_pro_state')||'');
+  _lastSnapshot = (localStorage.getItem('ticktick_pro_state')||'') + '||' + (localStorage.getItem('dayone_premium_diaries')||'') + '||' + (localStorage.getItem('asset_tracker_state')||'') + '||' + (localStorage.getItem('reviews_pro_state')||'') + '||' + (localStorage.getItem('health_pro_state')||'') + '||' + (localStorage.getItem('trash_pro_state')||'') + '||' + (localStorage.getItem('habit_pro_state')||'');
 });
 
 // re-render dashboard when returning to it

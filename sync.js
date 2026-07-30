@@ -6,8 +6,8 @@
 (function () {
   'use strict';
 
-  // 需要同步的 localStorage 键（任务 + 日记 + 归物 + 点评 + 健康 + 垃圾桶）
-  var SYNC_KEYS = ['ticktick_pro_state', 'dayone_premium_diaries', 'asset_tracker_state', 'reviews_pro_state', 'health_pro_state', 'trash_pro_state'];
+  // 需要同步的 localStorage 键（任务 + 日记 + 归物 + 点评 + 健康 + 垃圾桶 + 习惯打卡）
+  var SYNC_KEYS = ['ticktick_pro_state', 'dayone_premium_diaries', 'asset_tracker_state', 'reviews_pro_state', 'health_pro_state', 'trash_pro_state', 'habit_pro_state'];
   var CONFIG_KEY = 'pb_sync_config';   // { url, anonKey }
   var CODE_KEY   = 'pb_sync_code';     // 同步码（房间号）
   var META_KEY   = 'pb_sync_meta';     // { key: 已同步时间戳ms }

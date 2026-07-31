@@ -452,6 +452,10 @@ function loadTasksState(){
   try{ return JSON.parse(localStorage.getItem('ticktick_pro_state') || '{}'); }
   catch(e){ return {}; }
 }
+function loadHabitsState(){
+  try{ const a = JSON.parse(localStorage.getItem('habit_pro_state') || '[]'); return Array.isArray(a)? a : []; }
+  catch(e){ return []; }
+}
 function loadDiaries(){
   try{ const a = JSON.parse(localStorage.getItem('dayone_premium_diaries') || '[]'); return Array.isArray(a)? a : []; }
   catch(e){ return []; }
@@ -462,7 +466,7 @@ function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<
 function renderDashboard(){
   const tState = loadTasksState();
   const tasks = tState.tasks || [];
-  const habits = tState.habits || [];
+  const habits = loadHabitsState();
   const countdowns = tState.countdowns || [];
   const diaries = loadDiaries();
   const today = getTodayStr();
@@ -996,7 +1000,7 @@ function renderDashboard(){
 }
 
 /* ============ INIT ============ */
-const DASH_VERSION = 'v57-habit-key';
+const DASH_VERSION = 'v58-habit-board';
 
 // Debounced dashboard refresh — triggered by iframe postMessage or storage events
 let _dashRefreshTimer = null;

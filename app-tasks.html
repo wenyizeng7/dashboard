@@ -1767,11 +1767,15 @@
                 if (f === 'inbox') filtered = state.tasks.filter(t => t.listId === 'inbox' || !t.listId);
                 else if (f === 'today') {
                     filtered = state.tasks.filter(t => {
-                        // 今天 = 今天安排 或 跨今天(开始<=今天且结束>=今天)。不再把过去所有未完成任务都算进「今天」
-                        if(!t.completed) return t.startDate === today || (t.startDate <= today && t.endDate >= today);
-                        // 已完成：今天完成的，或（旧任务无 completedDate）今天安排/跨今天的
-                        return t.completedDate === today
-                            || (!t.completedDate && (t.startDate === today || (t.startDate <= today && t.endDate >= today)));
+                        // 过期判定：已开始且今天之前、且没有跨到今天（非跨天任务）
+                        const wasOverdue = t.startDate && t.startDate < today && !(t.endDate && t.endDate >= today);
+                        // 今天/跨今天 的未完成任务
+                        const isTodayTask = !t.completed && (t.startDate === today || (t.startDate <= today && t.endDate >= today));
+                        // 过期未完成任务也显示在今天（置于底部）
+                        const isOverdue = !t.completed && wasOverdue;
+                        // 已完成：仅限「今天/跨今天」的任务，且今天完成；过期的完成后不再出现在今天
+                        const isDoneToday = t.completed && !wasOverdue && (t.completedDate === today || (!t.completedDate && (t.startDate === today || (t.startDate <= today && t.endDate >= today))));
+                        return isTodayTask || isOverdue || isDoneToday;
                     });
                     grouped = true;
                 }
@@ -1847,9 +1851,12 @@
                 if(!grouped) {
                     h += un.map(buildHtml).join('');
                 } else {
-                    // 今天视图：仅含「今天安排」或「跨今天」的任务，按起始日期分组展示（不再把过期任务塞进今天）
+                    // 今天/本周视图：今天安排与跨天任务按起始日期分组在前；过期任务统一置底（不再顶到上面）
+                    const isOver = (t) => t.startDate && t.startDate < today && !(t.endDate && t.endDate >= today);
+                    const todayTasks = un.filter(t => !isOver(t));
+                    const overdueTasks = un.filter(t => isOver(t));
                     const grp = {};
-                    un.forEach(t => {
+                    todayTasks.forEach(t => {
                         const d = t.startDate || '未定日期';
                         if(!grp[d]) grp[d]=[]; grp[d].push(t);
                     });
@@ -1857,6 +1864,10 @@
                         let lbl = d === today ? '今天' : (d==='未定日期'?d:d.slice(5));
                         h += `<div class="mt-5 mb-1 font-bold text-gray-800 text-sm border-b border-gray-100 pb-1">${lbl} <span class="text-gray-400 font-normal ml-1">${grp[d].length}</span></div>` + grp[d].map(buildHtml).join('');
                     });
+                    if(overdueTasks.length > 0) {
+                        h += `<div class="mt-5 mb-1 font-bold text-gray-800 text-sm border-b border-gray-100 pb-1 flex items-center gap-1 text-red-500"><i class="fas fa-exclamation-circle text-xs"></i> 过期 <span class="text-red-300 font-normal ml-0.5">${overdueTasks.length}</span></div>`;
+                        h += overdueTasks.sort((a,b)=>(a.startDate||'').localeCompare(b.startDate||'')).map(buildHtml).join('');
+                    }
                 }
 
                 if(co.length > 0) {

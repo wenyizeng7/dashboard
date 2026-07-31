@@ -1558,7 +1558,7 @@
             updateCounts() {
                 const today = getTodayStr();
                 document.getElementById('count-inbox').innerText = state.tasks.filter(t=> t.listId==='inbox' && !t.completed).length || '';
-                document.getElementById('count-today').innerText = state.tasks.filter(t=> t.startDate===today && !t.completed).length || '';
+                document.getElementById('count-today').innerText = state.tasks.filter(t=> !t.completed && (t.startDate === today || (t.startDate <= today && t.endDate >= today))).length || '';
             },
 
             toggleListSection() {
@@ -1767,7 +1767,8 @@
                 if (f === 'inbox') filtered = state.tasks.filter(t => t.listId === 'inbox' || !t.listId);
                 else if (f === 'today') {
                     filtered = state.tasks.filter(t => {
-                        if(!t.completed) return t.startDate === today || (t.startDate <= today && t.endDate >= today) || (t.startDate < today);
+                        // 今天 = 今天安排 或 跨今天(开始<=今天且结束>=今天)。不再把过去所有未完成任务都算进「今天」
+                        if(!t.completed) return t.startDate === today || (t.startDate <= today && t.endDate >= today);
                         // 已完成：今天完成的，或（旧任务无 completedDate）今天安排/跨今天的
                         return t.completedDate === today
                             || (!t.completedDate && (t.startDate === today || (t.startDate <= today && t.endDate >= today)));
@@ -1846,17 +1847,11 @@
                 if(!grouped) {
                     h += un.map(buildHtml).join('');
                 } else {
-                    // Show overdue first
-                    const overdue = un.filter(t => t.startDate && t.startDate < today);
-                    if(overdue.length > 0) {
-                        h += `<div class="mt-2 mb-1 font-bold text-red-500 text-sm border-b border-red-100 pb-1 flex items-center gap-1"><i class="fas fa-exclamation-circle text-xs"></i> 过期 <span class="text-red-300 font-normal ml-0.5">${overdue.length}</span></div>`;
-                        h += overdue.map(buildHtml).join('');
-                    }
-                    const rest = un.filter(t => !t.startDate || t.startDate >= today);
+                    // 今天视图：仅含「今天安排」或「跨今天」的任务，按起始日期分组展示（不再把过期任务塞进今天）
                     const grp = {};
-                    rest.forEach(t => { 
+                    un.forEach(t => {
                         const d = t.startDate || '未定日期';
-                        if(!grp[d]) grp[d]=[]; grp[d].push(t); 
+                        if(!grp[d]) grp[d]=[]; grp[d].push(t);
                     });
                     Object.keys(grp).sort().forEach(d => {
                         let lbl = d === today ? '今天' : (d==='未定日期'?d:d.slice(5));

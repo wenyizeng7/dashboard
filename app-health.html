@@ -896,8 +896,8 @@ const app = {
         )+'</div>';
     });
 
-    // Diet statistics
-    html+=this.renderDietStats();
+    // 食谱日历（替代原来的卡路里统计）
+    html+=this.renderFoodCalendar();
 
     // Drink calendar
     html+=this.renderDrinkCalendar();
@@ -905,103 +905,135 @@ const app = {
     document.getElementById('diet-container').innerHTML=html;
   },
 
-  renderDietStats(){
+  /* ===== 食谱日历 (Food Calendar) — 看每天吃了什么，而不是卡路里 ===== */
+  renderFoodCalendar(){
     var self=this;
+    var now=new Date();
+    if(!this.foodCalYear) this.foodCalYear=now.getFullYear();
+    if(!this.foodCalMonth) this.foodCalMonth=now.getMonth();
+    var y=this.foodCalYear, m=this.foodCalMonth;
+    var dim=new Date(y,m+1,0).getDate();
+    var firstDay=new Date(y,m,1).getDay();
+    var offset=(firstDay+6)%7;
+    var monthNames=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
-    // === Pie chart card (category proportions) ===
-    var html='<div class="card bg-white rounded-2xl p-5 mb-4 shadow-sm border border-slate-100">'+
-      '<h2 class="font-bold text-sm mb-3">📊 食谱分类占比</h2>'+
-      this.rangeBar('app.setDietStatRange',this.dietStatRange);
-
-    var catDays={week:7,month:30,quarter:90,year:365}[this.dietStatRange]||30;
-    var catCal={};
-    MEALS.forEach(function(m){ catCal[m.key]=0; });
-    for(var i=0;i<catDays;i++){
-      var d=new Date(); d.setDate(d.getDate()-i);
-      var ds=self.dateToStr(d);
-      var dd=self.state.diet[ds];
-      if(dd) MEALS.forEach(function(m){ (dd[m.key]||[]).forEach(function(it){catCal[m.key]+=it.cal||0;}); });
-    }
-    var totalCatCal=0;
-    MEALS.forEach(function(m){ totalCatCal+=catCal[m.key]; });
-
-    if(totalCatCal===0){
-      html+='<div class="text-center py-8 text-slate-300 text-sm">该时段暂无数据</div>';
-    } else {
-      var r=50, circ=2*Math.PI*r;
-      var offset=0;
-      html+='<div class="flex items-center justify-center gap-4 mt-4"><div class="relative w-32 h-32"><svg class="w-32 h-32 -rotate-90" viewBox="0 0 120 120">';
-      html+='<circle cx="60" cy="60" r="50" fill="none" stroke="#f1f5f9" stroke-width="14"/>';
-      MEALS.forEach(function(m){
-        var pct=catCal[m.key]/totalCatCal;
-        if(pct>0){
-          var len=circ*pct;
-          html+='<circle cx="60" cy="60" r="50" fill="none" stroke="rgb('+m.rgb+')" stroke-width="14" stroke-dasharray="'+len+' '+(circ-len)+'" stroke-dashoffset="'+(-offset)+'"/>';
-          offset+=len;
+    // 收集当月每天的食谱数据
+    var monthData={};
+    var recordedDays=0, totalItems=0;
+    for(var d=1; d<=dim; d++){
+      var ds=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      var dayDiet=this.state.diet[ds];
+      if(dayDiet){
+        var mealsWithItems=[];
+        var itemsCount=0;
+        MEALS.forEach(function(meal){
+          var arr=dayDiet[meal.key]||[];
+          if(arr.length>0){ mealsWithItems.push(meal); itemsCount+=arr.length; }
+        });
+        if(itemsCount>0){
+          monthData[ds]={meals:mealsWithItems, count:itemsCount, diet:dayDiet};
+          recordedDays++; totalItems+=itemsCount;
         }
-      });
-      html+='</svg><div class="absolute inset-0 flex flex-col items-center justify-center"><span class="text-lg font-black text-slate-700">'+totalCatCal+'</span><span class="text-[9px] text-slate-400">总kcal</span></div></div>';
-      html+='<div class="space-y-2">'+MEALS.map(function(m){
-        var pct=totalCatCal>0?Math.round(catCal[m.key]/totalCatCal*100):0;
-        return '<div class="flex items-center gap-2"><div class="w-3 h-3 rounded" style="background:rgb('+m.rgb+')"></div><span class="text-xs font-semibold text-slate-600">'+m.icon+' '+m.label+'</span><span class="text-xs font-bold text-slate-700">'+catCal[m.key]+'</span><span class="text-[10px] text-slate-400">'+pct+'%</span></div>';
-      }).join('')+'</div></div>';
+      }
+    }
+
+    var html='<div class="card bg-white rounded-2xl p-5 mb-4 shadow-sm border border-slate-100">'+
+      '<div class="flex items-center justify-between mb-3">'+
+      '<button onclick="app.foodCalPrev()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><i class="fas fa-chevron-left text-xs"></i></button>'+
+      '<h2 class="font-bold text-sm">📅 食谱日历</h2>'+
+      '<button onclick="app.foodCalNext()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><i class="fas fa-chevron-right text-xs"></i></button>'+
+      '</div>'+
+      '<div class="text-center mb-3"><span class="text-base font-black text-slate-700">'+y+'年 '+monthNames[m]+'</span>'+
+      ' <span class="text-[11px] text-slate-400">· 已记录 '+recordedDays+' 天 / '+totalItems+' 餐</span></div>';
+
+    // 日期跳转
+    html+='<div class="flex items-center gap-2 mb-3">'+
+      '<span class="text-[10px] text-slate-400 font-bold">跳转日期：</span>'+
+      '<input type="date" id="foodCalJumpInput" class="text-xs px-2 py-1 rounded-lg border border-slate-200 outline-none focus:border-teal-400" onchange="app.foodCalJump()">'+
+      '</div>';
+
+    // 日历网格（周一开头）
+    var weekDays=['一','二','三','四','五','六','日'];
+    html+='<div class="grid grid-cols-7 gap-1.5">';
+    weekDays.forEach(function(w){ html+='<div class="text-center text-[10px] font-bold text-slate-400 pb-1">'+w+'</div>'; });
+    for(var i=0;i<offset;i++) html+='<div></div>';
+    var todayStr=this.todayStr();
+    for(var d=1; d<=dim; d++){
+      var ds=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      var dd=monthData[ds];
+      var isToday=ds===todayStr;
+      var bg=dd?'bg-amber-50 border-amber-200':'bg-slate-50 border-slate-100';
+      var todayCls=isToday?'ring-2 ring-teal-400':'';
+      html+='<div class="'+bg+' '+todayCls+' rounded-lg p-1.5 min-h-[80px] flex flex-col items-center cursor-pointer" onclick="app.showFoodDayDetail(\''+ds+'\')">';
+      html+='<span class="text-[11px] font-bold '+(isToday?'text-teal-600':'text-slate-500')+'">'+d+'</span>';
+      if(dd){
+        html+='<div class="flex flex-wrap gap-0.5 mt-0.5 justify-center">';
+        dd.meals.forEach(function(meal){ html+='<span class="text-[12px] leading-none">'+meal.icon+'</span>'; });
+        html+='</div>';
+        var sample=[];
+        MEALS.forEach(function(meal){ (dd.diet[meal.key]||[]).forEach(function(it){ sample.push(it.name); }); });
+        var preview=sample.slice(0,3).join('、');
+        if(sample.length>3) preview+='…';
+        html+='<span class="text-[9px] text-slate-500 mt-0.5 text-center leading-tight px-0.5 break-all">'+preview+'</span>';
+      }
+      html+='</div>';
     }
     html+='</div>';
 
-    // === Calorie trend line chart card ===
-    html+='<div class="card bg-white rounded-2xl p-5 mb-4 shadow-sm border border-slate-100">'+
-      '<h2 class="font-bold text-sm mb-3">📈 卡路里趋势</h2>'+
-      '<div class="flex gap-1 bg-slate-100 rounded-xl p-1 mb-4">'+
-      RANGES.map(function(r){
-        return '<button onclick="app.setDietCalRange(\''+r.key+'\')" class="range-btn flex-1 py-1.5 rounded-lg text-xs font-bold '+(r.key===self.dietCalRange?'active':'text-slate-500')+'">'+r.label+'</button>';
-      }).join('')+'</div>';
-
-    var calDays={week:7,month:30,quarter:90,year:365}[this.dietCalRange]||30;
-    var calData=[];
-    if(this.dietCalDateFrom){
-      var startD=new Date(this.dietCalDateFrom);
-      var endD=new Date(this.dietCalDateFrom); endD.setDate(endD.getDate()+calDays);
-      var cur=new Date(startD);
-      while(cur<=endD){
-        var ds=self.dateToStr(cur);
-        var dd=self.state.diet[ds];
-        var cal=0;
-        if(dd) MEALS.forEach(function(m){ (dd[m.key]||[]).forEach(function(it){cal+=it.cal||0;}); });
-        if(cal>0) calData.push({date:ds,value:cal});
-        cur.setDate(cur.getDate()+1);
-      }
-    } else {
-      for(var i=calDays-1;i>=0;i--){
-        var d=new Date(); d.setDate(d.getDate()-i);
-        var ds=self.dateToStr(d);
-        var dd=self.state.diet[ds];
-        var cal=0;
-        if(dd) MEALS.forEach(function(m){ (dd[m.key]||[]).forEach(function(it){cal+=it.cal||0;}); });
-        if(cal>0) calData.push({date:ds,value:cal});
-      }
-    }
-
-    // Aggregate by week for year/quarter
-    if(this.dietCalRange==='year'||this.dietCalRange==='quarter'){
-      var weekMap={};
-      calData.forEach(function(d){
-        var wd=new Date(d.date);
-        var ws=new Date(wd); ws.setDate(wd.getDate()-((wd.getDay()+6)%7));
-        var wss=self.dateToStr(ws);
-        if(!weekMap[wss]) weekMap[wss]={date:wss,values:[]};
-        weekMap[wss].values.push(d.value);
-      });
-      calData=Object.keys(weekMap).sort().map(function(k){
-        var w=weekMap[k];
-        var avg=Math.round(w.values.reduce(function(s,v){return s+v;},0)/w.values.length);
-        return {date:k,value:avg};
-      });
-    }
-
-    html+=this.buildCustomLineChart(calData,'245,158,11','kcal',2000,null,null,'dietCal');
-    html+=this.startDatePicker('dietCal')+'</div>';
-
+    // 当日详情面板
+    html+='<div id="food-cal-detail" class="mt-3"></div>';
+    html+='</div>';
     return html;
+  },
+
+  foodCalPrev(){
+    this.foodCalMonth--;
+    if(this.foodCalMonth<0){ this.foodCalMonth=11; this.foodCalYear--; }
+    this.renderDiet();
+  },
+  foodCalNext(){
+    this.foodCalMonth++;
+    if(this.foodCalMonth>11){ this.foodCalMonth=0; this.foodCalYear++; }
+    this.renderDiet();
+  },
+  foodCalJump(){
+    var el=document.getElementById('foodCalJumpInput');
+    if(!el||!el.value) return;
+    var d=new Date(el.value);
+    this.foodCalYear=d.getFullYear();
+    this.foodCalMonth=d.getMonth();
+    this.renderDiet();
+    setTimeout(function(){ app.showFoodDayDetail(el.value); },100);
+  },
+  showFoodDayDetail(date){
+    var detail=document.getElementById('food-cal-detail');
+    var dayDiet=this.state.diet[date];
+    var hasAny=dayDiet&&MEALS.some(function(meal){return (dayDiet[meal.key]||[]).length>0;});
+    if(!hasAny){
+      detail.innerHTML='<div class="bg-slate-50 rounded-xl p-3 text-center text-xs text-slate-400">'+date+' 还没有食谱记录</div>';
+      return;
+    }
+    var p=date.split('-');
+    var wd=new Date(+p[0],+p[1]-1,+p[2]).getDay();
+    var wnames=['日','一','二','三','四','五','六'];
+    var weekLabel='周'+wnames[wd];
+    var html='<div class="bg-amber-50 rounded-xl p-3">';
+    html+='<div class="flex items-center justify-between mb-2"><span class="text-xs font-bold text-slate-600">'+date+' '+weekLabel+'</span>'+
+          '<span class="text-[10px] text-slate-400">'+(+p[1])+'月'+(+p[2])+'日</span></div>';
+    html+='<div class="space-y-2">';
+    MEALS.forEach(function(meal){
+      var arr=dayDiet[meal.key]||[];
+      if(arr.length===0) return;
+      html+='<div><div class="text-[11px] font-bold text-slate-500 mb-1 flex items-center gap-1">'+meal.icon+' '+meal.label+'</div>';
+      arr.forEach(function(item){
+        html+='<div class="flex items-center gap-2 bg-white rounded-lg p-1.5 mb-1">'+
+          (item.img?'<img src="'+item.img+'" class="w-10 h-10 rounded-lg object-cover">':'<div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center text-lg">'+meal.icon+'</div>')+
+          '<div class="flex-1 min-w-0"><div class="text-xs font-semibold text-slate-700 truncate">'+item.name+'</div>'+
+          '<div class="text-[10px] text-slate-400">'+(item.gram?item.gram+'g':'无分量')+(item.cal?(' · '+(item.cal)+' kcal'):'')+'</div></div></div>';
+      });
+    });
+    html+='</div></div>';
+    detail.innerHTML=html;
   },
 
   setDietStatRange(r){ this.dietStatRange=r; this.renderDiet(); },

@@ -1201,7 +1201,7 @@
                 document.getElementById('day-panel-date').innerText = dateLabel;
 
                 // 获取当天所有任务（应用日历清单筛选）
-                const tasks = this._getCalFilteredTasks(dateStr);
+                const tasks = app._getCalFilteredTasks(dateStr);
                 tasks.sort((a, b) => {
                     if(a.completed !== b.completed) return a.completed ? 1 : -1;
                     const aT = a.startTime || 'zz', bT = b.startTime || 'zz';

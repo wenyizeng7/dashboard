@@ -104,6 +104,34 @@
     return s;
   }
 
+  /* 习惯打卡按「每条习惯」合并打卡日志（并集），而非整块 last-write-wins。
+     否则手机打卡 A、桌面打卡 B 时，后推送的一方会整块覆盖，导致另一方的完成状态丢失。 */
+  function mergeHabitState(localStr, cloudStr) {
+    try {
+      var local = localStr ? JSON.parse(localStr) : [];
+      var cloud = cloudStr ? JSON.parse(cloudStr) : [];
+      if (!Array.isArray(local)) local = [];
+      if (!Array.isArray(cloud)) cloud = [];
+      var map = {};
+      local.forEach(function (h) { if (h && h.id) map[h.id] = h; });
+      cloud.forEach(function (h) {
+        if (!h || !h.id) return;
+        if (!map[h.id]) { map[h.id] = h; return; }
+        var mh = map[h.id];
+        var mlogs = mh.logs || {};
+        var clogs = h.logs || {};
+        Object.keys(clogs).forEach(function (d) { if (clogs[d]) mlogs[d] = true; }); // 任意一方打卡即视为完成
+        mh.logs = mlogs;
+        if (h.name) mh.name = h.name;
+        if (h.icon) mh.icon = h.icon;
+        if (h.frequency) mh.frequency = h.frequency;
+      });
+      return JSON.stringify(Object.keys(map).map(function (k) { return map[k]; }));
+    } catch (e) {
+      return localStr || cloudStr;
+    }
+  }
+
   /* ---------- 加载 Supabase 库 ---------- */
   function loadLib() {
     if (window.supabase) return Promise.resolve();
@@ -155,10 +183,14 @@
         var cloudTs = new Date(row.updated_at).getTime();
         var localTs = meta[row.data_key] || 0;
         if (cloudTs > localTs) {
-          var val = (typeof row.data_value === 'string') ? row.data_value : JSON.stringify(row.data_value);
+          var incoming = (typeof row.data_value === 'string') ? row.data_value : JSON.stringify(row.data_value);
+          var oldLocal = localStorage.getItem(row.data_key) || '';
+          // 习惯打卡按每条习惯合并（并集打卡日志），避免整块覆盖丢失另一端的完成状态
+          var val = (row.data_key === 'habit_pro_state') ? mergeHabitState(oldLocal, incoming) : incoming;
           localStorage.setItem(row.data_key, val);
           meta[row.data_key] = cloudTs;
-          lastSnapshot[row.data_key] = val;
+          // 若发生了合并（本地与云端不同），保留旧快照以触发一次回推，把合并结果写回云端
+          lastSnapshot[row.data_key] = (val !== oldLocal) ? oldLocal : val;
           changed = true;
         }
       });

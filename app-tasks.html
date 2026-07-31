@@ -3056,12 +3056,19 @@
         });
 
         // ===== 云同步轮询：每2秒检查 localStorage 是否被外部（同步/其他标签页）修改 =====
-        var _lastStateStr = localStorage.getItem('ticktick_pro_state') || '';
+        // 同时监听 ticktick_pro_state（任务/清单/倒数日）与 habit_pro_state（习惯打卡），
+        // 否则习惯同步仅依赖 pb-sync-update 消息，在 iframe 内容易漏收 → 习惯打卡状态不同步。
+        var _lastTasksStr = localStorage.getItem('ticktick_pro_state') || '';
+        var _lastHabitStr = localStorage.getItem('habit_pro_state') || '';
         var _syncReloading = false; // 防止重入
         setInterval(function() {
             if (_syncReloading) return;
-            var current = localStorage.getItem('ticktick_pro_state') || '';
-            if (current !== _lastStateStr && current) {
+            var curTasks = localStorage.getItem('ticktick_pro_state') || '';
+            var curHabits = localStorage.getItem('habit_pro_state') || '';
+            var changed = (curTasks !== _lastTasksStr && curTasks) || (curHabits !== _lastHabitStr && curHabits);
+            if (changed) {
+                _lastTasksStr = curTasks;
+                _lastHabitStr = curHabits;
                 console.log('[tasks] 检测到外部数据变更（同步/其他标签），重新加载...');
                 _syncReloading = true;
                 try {

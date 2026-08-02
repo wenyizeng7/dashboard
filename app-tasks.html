@@ -832,6 +832,7 @@
                     <button id="cal-quick-delete-btn" class="px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded hidden transition" onclick="app.deleteCalQuickTask()">删除</button>
                     <div class="flex gap-2 ml-auto">
                         <button class="px-4 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded font-medium transition" onclick="modals.closeAll()">取消</button>
+                        <button id="cal-quick-complete-btn" class="px-4 py-1.5 text-xs text-white bg-emerald-500 hover:bg-emerald-600 rounded shadow-sm font-medium transition" onclick="app.saveCalQuick(true)">直接完成</button>
                         <button class="px-4 py-1.5 text-xs text-white bg-blue-500 hover:bg-blue-600 rounded shadow-sm font-medium transition" onclick="app.saveCalQuick()">保存</button>
                     </div>
                 </div>
@@ -1183,6 +1184,9 @@
 
                 const delBtn = document.getElementById('cal-quick-delete-btn');
                 taskId ? delBtn.classList.remove('hidden') : delBtn.classList.add('hidden');
+
+                const compBtn = document.getElementById('cal-quick-complete-btn');
+                taskId ? compBtn.classList.add('hidden') : compBtn.classList.remove('hidden');
 
                 app.toggleCalQuickMultiDay();
                 app.toggleCalQuickTime();
@@ -2069,7 +2073,7 @@
                 }
             },
 
-            saveCalQuick() {
+            saveCalQuick(complete) {
                 const title = document.getElementById('cal-quick-title').value.trim();
                 const desc = document.getElementById('cal-quick-desc').value.trim();
                 const date = document.getElementById('cal-quick-date').value;
@@ -2088,11 +2092,14 @@
                     const t = state.tasks.find(x=>x.id===state.editingTaskId);
                     t.title = title; t.description = desc; t.startDate = date; t.endDate = endDate;
                     t.startTime = startTime; t.endTime = endTime; t.listId = listId; t.priority = priority; t.tags = tags;
+                    if(complete) { t.completed = true; t.completedDate = getTodayStr(); }
                 } else {
                     state.tasks.push({
                         id: 'tk'+Date.now(), title, description: desc, listId, 
                         startDate: date, startTime, endDate, endTime, 
-                        completed: false, tags: tags, priority: priority, created: getTodayStr(), focusTime: 0
+                        completed: !!complete, 
+                        completedDate: complete ? getTodayStr() : undefined,
+                        tags: tags, priority: priority, created: getTodayStr(), focusTime: 0
                     });
                 }
                 const reopenDayPanel = app._dayPanelContext && state.dayPanelDate;

@@ -331,12 +331,18 @@ const app = {
     var label='';
 
     if(range==='week'){
-      for(var i=6;i>=0;i--){
-        var d=new Date(); d.setDate(d.getDate()-i);
+      // 本周：周一开始，周日结束（按周一对齐，而非“最近7天”）
+      var monday=new Date(now);
+      var _wd=monday.getDay();
+      var _shift=(_wd===0?-6:1-_wd);
+      monday.setDate(monday.getDate()+_shift);
+      var _dowLabels=['一','二','三','四','五','六','日'];
+      for(var i=0;i<7;i++){
+        var d=new Date(monday); d.setDate(monday.getDate()+i);
         var ds=self.dateToStr(d);
-        cells.push({date:ds,count:dataMap[ds]||0,dayLabel:['日','一','二','三','四','五','六'][d.getDay()]});
+        cells.push({date:ds,count:dataMap[ds]||0,dayLabel:_dowLabels[i]});
       }
-      label='近一周';
+      label='本周（周一~周日）';
       return self._heatRow(cells,goal,rgb,label);
     }
 
@@ -457,89 +463,72 @@ const app = {
   /* ===== REUSABLE: Line Chart with date range ===== */
   buildLineChart(data, range, rgb, unit, goal, prefix){
     var self=this;
-    var filtered=[];
     var now=new Date();
-    var label='';
-
-    if(range==='week'){
-      for(var i=6;i>=0;i--){ var d=new Date(); d.setDate(d.getDate()-i); var ds=self.dateToStr(d); filtered.push(ds); }
-      label='近一周';
-    } else if(range==='month'){
-      for(var i=29;i>=0;i--){ var d=new Date(); d.setDate(d.getDate()-i); var ds=self.dateToStr(d); filtered.push(ds); }
-      label='近一月';
-    } else if(range==='quarter'){
-      for(var i=89;i>=0;i--){ var d=new Date(); d.setDate(d.getDate()-i); var ds=self.dateToStr(d); filtered.push(ds); }
-      label='近一季';
-    } else if(range==='year'){
-      var yr=now.getFullYear();
-      for(var m=0;m<12;m++){ var ds=yr+'-'+String(m+1).padStart(2,'0')+'-01'; filtered.push(ds); }
-      label=yr+'年';
-    }
-
     var dMap={};
     data.forEach(function(d){ dMap[d.date]=d.value; });
 
-    var points=[];
-    if(range==='week'||range==='month'){
-      filtered.forEach(function(ds){
-        if(dMap[ds]!==undefined) points.push({date:ds,value:dMap[ds]});
-      });
+    // ---- 构建坐标轴刻度（bucket）----
+    var buckets=[]; // {key,label,date}
+    if(range==='week'){
+      // 本周：周一对齐
+      var sw=new Date(now); var wd=sw.getDay(); var sh=(wd===0?-6:1-wd); sw.setDate(sw.getDate()+sh);
+      var dowLabels=['一','二','三','四','五','六','日'];
+      for(var i=0;i<7;i++){ var d=new Date(sw); d.setDate(sw.getDate()+i); var ds=self.dateToStr(d); buckets.push({key:ds,label:(i===0?'周一':(i===6?'周日':dowLabels[i])),date:ds}); }
+    } else if(range==='month'){
+      for(var i=29;i>=0;i--){ var d=new Date(now); d.setDate(d.getDate()-i); var ds=self.dateToStr(d); buckets.push({key:ds,label:ds.slice(5),date:ds}); }
+    } else if(range==='quarter'){
+      // 最近 3 个自然月，每月一个点
+      for(var k=2;k>=0;k--){ var dm=new Date(now.getFullYear(),now.getMonth()-k,1); var yk=dm.getFullYear(),mk=dm.getMonth(); buckets.push({key:yk+'-'+String(mk+1).padStart(2,'0'),label:(mk+1)+'月',date:yk+'-'+String(mk+1).padStart(2,'0')+'-15'}); }
     } else {
-      var monthMap={};
-      data.forEach(function(d){
-        var m=d.date.slice(0,7);
-        if(!monthMap[m]||d.date>monthMap[m].date) monthMap[m]=d;
-      });
-      filtered.forEach(function(ds){
-        var m=ds.slice(0,7);
-        if(monthMap[m]) points.push({date:monthMap[m].date,value:monthMap[m].value});
-      });
+      var yr=now.getFullYear();
+      for(var m=0;m<12;m++){ buckets.push({key:yr+'-'+String(m+1).padStart(2,'0'),label:(m+1)+'月',date:yr+'-'+String(m+1).padStart(2,'0')+'-15'}); }
     }
 
+    // ---- 把数据映射到刻度 ----
+    var points=[];
+    if(range==='week'||range==='month'){
+      buckets.forEach(function(b){ if(dMap[b.key]!==undefined) points.push({date:b.key,value:dMap[b.key]}); });
+    } else {
+      // 月度：取该月最后一条记录
+      var monthLast={};
+      data.forEach(function(d){ var mk=d.date.slice(0,7); if(!monthLast[mk]||d.date>monthLast[mk].date) monthLast[mk]=d; });
+      buckets.forEach(function(b){ var rec=monthLast[b.key]; if(rec) points.push({date:rec.date,value:rec.value}); });
+    }
     if(points.length===0) return '<div class="text-center py-6 text-slate-300 text-sm">暂无数据，开始记录吧</div>';
-
     if(points.length===1) points=[points[0],points[0]];
 
+    // ---- x 轴按真实日期定位（修复稀疏数据被“均匀铺满”的错位）----
+    var W=320, H=200, pL=40, pR=15, pT=15, pB=30;
+    var plotW=W-pL-pR, plotH=H-pT-pB;
+    var ptsDates=points.map(function(p){return new Date(p.date);});
+    var bDates=buckets.map(function(b){return new Date(b.date);});
+    var minD=new Date(Math.min.apply(null,ptsDates.concat(bDates)));
+    var maxD=new Date(Math.max.apply(null,ptsDates.concat(bDates)));
+    var span=(maxD-minD)||86400000;
+    var xOf=function(dt){ var t=(new Date(dt)-minD)/span; t=t<0?0:(t>1?1:t); return pL+t*plotW; };
+
+    // ---- y 轴比例 ----
     var vals=points.map(function(p){return p.value;});
-    var minV=Math.min.apply(null,vals);
-    var maxV=Math.max.apply(null,vals);
+    var minV=Math.min.apply(null,vals), maxV=Math.max.apply(null,vals);
     var pad=(maxV-minV)||Math.max(1,maxV*0.1);
     minV-=pad; maxV+=pad;
     var rangeV=maxV-minV||1;
 
-    var W=320, H=200, pL=40, pR=15, pT=15, pB=30;
-    var plotW=W-pL-pR, plotH=H-pT-pB;
-
-    var pathD=points.map(function(p,i){
-      var x=pL+(points.length===1?plotW/2:(i/(points.length-1))*plotW);
-      var y=pT+plotH-((p.value-minV)/rangeV)*plotH;
-      return (i===0?'M':'L')+x.toFixed(1)+','+y.toFixed(1);
-    }).join(' ');
-
-    var areaD=pathD+' L'+(pL+(plotW)).toFixed(1)+','+(pT+plotH)+' L'+pL+','+(pT+plotH)+' Z';
+    var plotPts=points.map(function(p){ var x=xOf(new Date(p.date)); var y=pT+plotH-((p.value-minV)/rangeV)*plotH; return {x:x,y:y}; });
+    var pathD=plotPts.map(function(p,i){ return (i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' ');
+    var areaD=pathD+' L'+(plotW+pL).toFixed(1)+','+(pT+plotH)+' L'+pL+','+(pT+plotH)+' Z';
 
     var yLabels=[];
-    for(var i=0;i<=4;i++){
-      var v=minV+(rangeV*i/4);
-      var y=pT+plotH-(i/4)*plotH;
-      yLabels.push({v:v.toFixed(1),y:y});
-    }
+    for(var i=0;i<=4;i++){ var v=minV+(rangeV*i/4); var y=pT+plotH-(i/4)*plotH; yLabels.push({v:v.toFixed(1),y:y}); }
 
     var xLabels=[];
-    if(range==='week'||range==='month'){
-      var step=Math.max(1,Math.floor(points.length/6));
-      points.forEach(function(p,i){
-        if(i%step===0||i===points.length-1){
-          var x=pL+(points.length===1?plotW/2:(i/(points.length-1))*plotW);
-          xLabels.push({label:p.date.slice(5),x:x});
-        }
-      });
+    if(range==='week'){
+      [0,2,4,6].forEach(function(i){ if(buckets[i]) xLabels.push({label:buckets[i].label,x:xOf(buckets[i].date)}); });
+    } else if(range==='month'){
+      var step=Math.max(1,Math.floor(buckets.length/6));
+      buckets.forEach(function(b,i){ if(i%step===0||i===buckets.length-1) xLabels.push({label:b.label,x:xOf(b.date)}); });
     } else {
-      var monthNames=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-      monthNames.forEach(function(mn,i){
-        var x=pL+(i/11)*plotW;
-        xLabels.push({label:mn,x:x});
-      });
+      buckets.forEach(function(b){ xLabels.push({label:b.label,x:xOf(b.date)}); });
     }
 
     var goalY=goal?pT+plotH-((goal-minV)/rangeV)*plotH:null;
@@ -551,14 +540,9 @@ const app = {
     svg+='<path d="'+areaD+'" fill="rgba('+rgb+',0.08)"/>';
     svg+='<path d="'+pathD+'" fill="none" stroke="rgb('+rgb+')" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
     if(goalY!==null){ svg+='<line x1="'+pL+'" y1="'+goalY+'" x2="'+(W-pR)+'" y2="'+goalY+'" stroke="#10b981" stroke-width="1" stroke-dasharray="4,3"/>'; svg+='<text x="'+(W-pR)+'" y="'+(goalY-4)+'" font-size="9" fill="#10b981" text-anchor="end">目标 '+goal+'</text>'; }
-    points.forEach(function(p){
-      var x=pL+(points.length===1?plotW/2:(points.indexOf(p)/(points.length-1))*plotW);
-      var y=pT+plotH-((p.value-minV)/rangeV)*plotH;
-      svg+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="rgb('+rgb+')"/>';
-    });
-    xLabels.forEach(function(xl){ svg+='<text x="'+xl.x+'" y="'+(H-8)+'" font-size="9" fill="#94a3b8" text-anchor="middle">'+xl.label+'</text>'; });
+    plotPts.forEach(function(p){ svg+='<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3" fill="rgb('+rgb+')"/>'; });
+    xLabels.forEach(function(xl){ svg+='<text x="'+xl.x.toFixed(1)+'" y="'+(H-8)+'" font-size="9" fill="#94a3b8" text-anchor="middle">'+xl.label+'</text>'; });
     svg+='</svg></div>';
-
     return svg;
   },
 

@@ -1767,14 +1767,19 @@
                 if (f === 'inbox') filtered = state.tasks.filter(t => t.listId === 'inbox' || !t.listId);
                 else if (f === 'today') {
                     filtered = state.tasks.filter(t => {
-                        // 过期判定：已开始且今天之前、且没有跨到今天（非跨天任务）
-                        const wasOverdue = t.startDate && t.startDate < today && !(t.endDate && t.endDate >= today);
-                        // 今天/跨今天 的未完成任务
-                        const isTodayTask = !t.completed && (t.startDate === today || (t.startDate <= today && t.endDate >= today));
-                        // 过期未完成任务也显示在今天（置于底部）
+                        // 以「截止日期 = endDate || startDate」为基准，兼容只有截止日期的任务
+                        const lo = t.startDate || t.endDate;            // 最早日期
+                        const hi = t.endDate || t.startDate;            // 最晚(截止)日期
+                        const due = t.endDate || t.startDate;           // 截止日期
+                        const activeToday = lo && hi && lo <= today && hi >= today; // 跨今天(不论完成)
+                        const wasOverdue = due && due < today;          // 截止日期已过(不论完成)
+                        const isTodayTask = !t.completed && activeToday;
                         const isOverdue = !t.completed && wasOverdue;
-                        // 已完成：仅限「今天/跨今天」的任务，且今天完成；过期的完成后不再出现在今天
-                        const isDoneToday = t.completed && !wasOverdue && (t.completedDate === today || (!t.completedDate && (t.startDate === today || (t.startDate <= today && t.endDate >= today))));
+                        // 已完成：今天完成的(非过期任务) 或 今天/跨今天且无完成日期的旧任务；过期任务完成后退出今天
+                        const isDoneToday = t.completed && (
+                            (t.completedDate === today && !wasOverdue)
+                            || (!t.completedDate && (t.startDate === today || activeToday))
+                        );
                         return isTodayTask || isOverdue || isDoneToday;
                     });
                     grouped = true;
@@ -1832,7 +1837,7 @@
                             <div class="flex-1 min-w-0">
                                 <div class="text-[14px] ${t.completed ? 'text-gray-400 line-through' : 'text-gray-800'} truncate">${t.title}</div>
                                 <div class="flex items-center gap-2 mt-1 text-xs text-gray-400">
-                                    ${dateStr ? `<span class="flex items-center gap-1 ${t.startDate < today && !t.completed ? 'text-red-400':''}"><i class="far fa-calendar-alt"></i>${dateStr}</span>` : ''}
+                                    ${dateStr ? `<span class="flex items-center gap-1 ${((t.endDate||t.startDate) && (t.endDate||t.startDate) < today && !t.completed) ? 'text-red-400':''}"><i class="far fa-calendar-alt"></i>${dateStr}</span>` : ''}
                                     ${l ? `<span class="flex items-center gap-1"><i class="fas ${l.icon}" style="color:${l.color}"></i>${l.name}</span>` : ''}
                                     ${t.focusTime ? `<span class="flex items-center gap-1 text-orange-400" title="专注时间: ${t.focusTime}分钟"><i class="fas fa-stopwatch"></i>${t.focusTime}m</span>` : ''}
                                     ${tagsHtml}
@@ -1852,7 +1857,7 @@
                     h += un.map(buildHtml).join('');
                 } else {
                     // 今天/本周视图：今天安排与跨天任务按起始日期分组在前；过期任务统一置底（不再顶到上面）
-                    const isOver = (t) => t.startDate && t.startDate < today && !(t.endDate && t.endDate >= today);
+                    const isOver = (t) => { const due = t.endDate || t.startDate; return !!(due && due < today); };
                     const todayTasks = un.filter(t => !isOver(t));
                     const overdueTasks = un.filter(t => isOver(t));
                     const grp = {};

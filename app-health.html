@@ -230,6 +230,7 @@ const RANGES = [
 const app = {
   state:null, currentTab:'water', selectedExType:'跑步', currentMeal:'breakfast',
   waterRange:'month', exRange:'month',
+  waterActiveDate:null, dietActiveDate:null,
   weightRange:'year', weightDateFrom:'', weightDateTo:'',
   waistRange:'year', waistDateFrom:'', waistDateTo:'',
   dietStatRange:'month', dietCalRange:'month', dietCalDateFrom:'',
@@ -632,15 +633,19 @@ const app = {
   renderWater(){
     var self=this;
     var today=this.todayStr();
+    var currentDate=this.waterActiveDate||today;
     var goal=this.state.settings.waterGoal||8;
-    var current=this.state.water[today]||0;
+    var current=this.state.water[currentDate]||0;
     var pct=Math.min(100,(current/goal)*100);
     var isDone=current>=goal;
 
     var html='<div class="card bg-white rounded-2xl p-5 mb-4 shadow-sm border border-slate-100">'+
-      '<div class="flex items-center justify-between mb-1"><h2 class="font-bold text-base">💧 今日喝水</h2>'+
+      '<div class="flex items-center justify-between mb-1"><h2 class="font-bold text-base">💧 喝水记录</h2>'+
       '<span class="text-xs font-bold '+(isDone?'text-emerald-500':'text-slate-400')+'">'+(isDone?'✅ 已达标':'继续加油')+'</span></div>'+
-      '<p class="text-[11px] text-slate-400 mb-4">'+this.fmtDate(today)+' · 目标 '+goal+' 杯</p>'+
+      '<p class="text-[11px] text-slate-400 mb-3">'+this.fmtDate(currentDate)+' · 目标 '+goal+' 杯</p>'+
+      '<div class="flex items-center gap-2 mb-4"><span class="text-[10px] text-slate-400 font-bold">记录日期</span>'+
+      '<input type="date" id="waterActiveDateInput" value="'+currentDate+'" class="text-xs px-2 py-1 rounded-lg border border-slate-200 outline-none focus:border-teal-400" onchange="app.setWaterActiveDate()">'+
+      '</div>'+
       '<div class="flex flex-col items-center mb-5"><div class="relative w-32 h-32">'+
       '<svg class="w-32 h-32 -rotate-90" viewBox="0 0 128 128"><circle cx="64" cy="64" r="56" fill="none" stroke="#e2e8f0" stroke-width="10"/>'+
       '<circle cx="64" cy="64" r="56" fill="none" stroke="'+(isDone?'#10b981':'#06b6d4')+'" stroke-width="10" stroke-linecap="round" stroke-dasharray="'+(2*Math.PI*56)+'" stroke-dashoffset="'+(2*Math.PI*56*(1-pct/100))+'" style="transition: stroke-dashoffset .4s ease"/></svg>'+
@@ -678,21 +683,26 @@ const app = {
     document.getElementById('water-container').innerHTML=html;
   },
 
+  setWaterActiveDate(){
+    var el=document.getElementById('waterActiveDateInput');
+    if(el&&el.value) this.waterActiveDate=el.value;
+    this.renderWater();
+  },
   toggleCup(n){
-    var today=this.todayStr();
+    var today=this.waterActiveDate||this.todayStr();
     this.state.water[today]=n;
     if(this.state.water[today]<=0) delete this.state.water[today];
     this.saveState(); this.renderWater();
   },
   addCup(){
-    var today=this.todayStr();
+    var today=this.waterActiveDate||this.todayStr();
     this.state.water[today]=(this.state.water[today]||0)+1;
     this.saveState(); this.renderWater();
     var goal=this.state.settings.waterGoal||8;
-    if(this.state.water[today]===goal) this.toast('🎉 今日喝水达标！');
+    if(this.state.water[today]===goal) this.toast('🎉 喝水达标！');
   },
   removeCup(){
-    var today=this.todayStr();
+    var today=this.waterActiveDate||this.todayStr();
     if(this.state.water[today]){ this.state.water[today]--; if(this.state.water[today]<=0) delete this.state.water[today]; this.saveState(); this.renderWater(); }
   },
 
@@ -842,14 +852,18 @@ const app = {
   renderDiet(){
     var self=this;
     var today=this.todayStr();
-    var dayDiet=this.state.diet[today];
-    if(!dayDiet){ dayDiet={}; MEALS.forEach(function(m){dayDiet[m.key]=[];}); this.state.diet[today]=dayDiet; }
+    var activeDate=this.dietActiveDate||today;
+    var dayDiet=this.state.diet[activeDate];
+    if(!dayDiet){ dayDiet={}; MEALS.forEach(function(m){dayDiet[m.key]=[];}); this.state.diet[activeDate]=dayDiet; }
 
     var totalCal=0;
     MEALS.forEach(function(m){ (dayDiet[m.key]||[]).forEach(function(item){totalCal+=item.cal||0;}); });
 
     var html='<div class="card bg-white rounded-2xl p-5 mb-4 shadow-sm border border-slate-100">'+
-      '<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-base">🍽️ 今日食谱</h2><span class="text-xs text-slate-400 font-semibold">'+this.fmtDate(today)+'</span></div>'+
+      '<div class="flex items-center justify-between mb-2"><h2 class="font-bold text-base">🍽️ 食谱</h2><span class="text-xs text-slate-400 font-semibold">'+this.fmtDate(activeDate)+'</span></div>'+
+      '<div class="flex items-center gap-2 mb-3"><span class="text-[10px] text-slate-400 font-bold">记录日期</span>'+
+      '<input type="date" id="dietActiveDateInput" value="'+activeDate+'" class="text-xs px-2 py-1 rounded-lg border border-slate-200 outline-none focus:border-amber-400" onchange="app.setDietActiveDate()">'+
+      '</div>'+
       '<div class="flex items-center gap-4"><div class="relative w-20 h-20">'+
       '<svg class="w-20 h-20 -rotate-90" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" fill="none" stroke="#e2e8f0" stroke-width="7"/>'+
       '<circle cx="40" cy="40" r="34" fill="none" stroke="#f59e0b" stroke-width="7" stroke-linecap="round" stroke-dasharray="'+(2*Math.PI*34)+'" stroke-dashoffset="'+(2*Math.PI*34*Math.max(0,1-Math.min(totalCal,2000)/2000))+'" style="transition: stroke-dashoffset .4s ease"/></svg>'+
@@ -1016,7 +1030,9 @@ const app = {
           '<div class="text-[10px] text-slate-400">'+(item.gram?item.gram+'g':'无分量')+(item.cal?(' · '+(item.cal)+' kcal'):'')+'</div></div></div>';
       });
     });
-    html+='</div></div>';
+    html+='</div>'+
+      '<button onclick="app.setDietActiveDate(\''+date+'\')" class="mt-2 w-full py-2 rounded-lg bg-amber-500 text-white text-xs font-bold active:scale-95 transition">✏️ 把这一天设为记录日（可添加/删除食物）</button>'+
+      '</div>';
     detail.innerHTML=html;
   },
 
@@ -1082,6 +1098,11 @@ const app = {
     if(input) input.value='';
   },
 
+  setDietActiveDate(date){
+    if(date){ this.dietActiveDate=date; }
+    else { var el=document.getElementById('dietActiveDateInput'); if(el&&el.value) this.dietActiveDate=el.value; }
+    this.renderDiet();
+  },
   saveDietItem(){
     var name=document.getElementById('diet-name').value.trim();
     var gram=parseFloat(document.getElementById('diet-gram').value)||0;
@@ -1091,7 +1112,7 @@ const app = {
       var item=this.state.quickPicks.find(function(q){return q.name===name;});
       if(item) cal=Math.round(item.calPer100g*gram/100);
     }
-    var today=this.todayStr();
+    var today=this.dietActiveDate||this.todayStr();
     if(!this.state.diet[today]) { var d={}; MEALS.forEach(function(m){d[m.key]=[];}); this.state.diet[today]=d; }
     if(!this.state.diet[today][this.currentMeal]) this.state.diet[today][this.currentMeal]=[];
     var newItem={id:'d'+Date.now()+'-'+Math.floor(Math.random()*1000),name:name,gram:gram,cal:cal};
@@ -1103,7 +1124,7 @@ const app = {
   },
 
   deleteDietItem(meal,idx){
-    var today=this.todayStr();
+    var today=this.dietActiveDate||this.todayStr();
     if(this.state.diet[today]&&this.state.diet[today][meal]){
       this.state.diet[today][meal].splice(idx,1);
       this.saveState(); this.renderDiet();

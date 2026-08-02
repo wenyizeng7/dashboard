@@ -828,12 +828,12 @@
                     <i class="fas fa-tags text-gray-400 text-[10px] w-4 text-center mt-1.5"></i>
                     <div id="cal-quick-tags" class="flex-1 flex flex-wrap gap-1"></div>
                 </div>
-                <div class="flex justify-between items-center mt-2 pt-2 border-t border-gray-50 w-full">
-                    <button id="cal-quick-delete-btn" class="px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded hidden transition" onclick="app.deleteCalQuickTask()">删除</button>
-                    <div class="flex gap-2 ml-auto">
-                        <button class="px-4 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded font-medium transition" onclick="modals.closeAll()">取消</button>
-                        <button id="cal-quick-complete-btn" class="px-4 py-1.5 text-xs text-white bg-emerald-500 hover:bg-emerald-600 rounded shadow-sm font-medium transition" onclick="app.saveCalQuick(true)">直接完成</button>
-                        <button class="px-4 py-1.5 text-xs text-white bg-blue-500 hover:bg-blue-600 rounded shadow-sm font-medium transition" onclick="app.saveCalQuick()">保存</button>
+                <div class="flex justify-between items-center mt-2 pt-2 border-t border-gray-50 w-full gap-2">
+                    <button id="cal-quick-delete-btn" class="px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded hidden transition whitespace-nowrap" onclick="app.deleteCalQuickTask()">删除</button>
+                    <div class="flex flex-wrap justify-end gap-2 ml-auto">
+                        <button class="px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-100 rounded font-medium transition whitespace-nowrap" onclick="modals.closeAll()">取消</button>
+                        <button id="cal-quick-complete-btn" class="px-3 py-1.5 text-sm text-white bg-emerald-500 hover:bg-emerald-600 rounded shadow-sm font-medium transition flex items-center gap-1 whitespace-nowrap" onclick="app.saveCalQuick(true)"><i class="fas fa-check"></i> 完成</button>
+                        <button class="px-3 py-1.5 text-sm text-white bg-blue-500 hover:bg-blue-600 rounded shadow-sm font-medium transition whitespace-nowrap" onclick="app.saveCalQuick()">保存</button>
                     </div>
                 </div>
             </div>

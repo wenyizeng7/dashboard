@@ -3031,22 +3031,32 @@
                     const bgStyle = past ? 'from-gray-300 to-gray-400' : styles[idx % 4];
                     const labelStr = isToday ? '今天' : (past ? '已经' : '还有');
 
-                    // 纪念模式：同时显示「已经多少天」与「离下次多少天」
+                    // 纪念模式：已经 N 天 = 自「设定日期」起的累计天数（如年龄/结婚天数）；离下次 = 距下一次出现的天数
                     const isMemorial = cd.mode === 'memorial';
-                    const prevDate = isMemorial ? this.getPrevCountdownDate(cd) : null;
+                    const baseDate = new Date(cd.date);
+                    if(!isNaN(baseDate.getTime())) baseDate.setHours(0,0,0,0);
+                    const daysSince = (!isNaN(baseDate.getTime()) && baseDate <= t) ? Math.ceil((t - baseDate) / 86400000) : null;
                     const daysUntil = Math.max(0, Math.ceil((nextDate - t) / 86400000));
-                    const daysSince = (prevDate !== null) ? Math.ceil((t - prevDate) / 86400000) : null;
-                    const showMemorial = isMemorial && daysSince !== null;
+                    const prevDate = isMemorial ? this.getPrevCountdownDate(cd) : null;
+                    const showMemorial = isMemorial && (daysSince !== null || (cd.repeat && cd.repeat !== 'none'));
                     const prevDateStr = (prevDate !== null) ? _formatLocalDate(prevDate) : '';
+                    // 每年重复的纪念：显示「第 N 周年」/ 年龄，更贴近 Days Matter
+                    let annivTag = '';
+                    if(isMemorial && cd.repeat === 'annual' && daysSince !== null) {
+                        const yrs = Math.floor(daysSince / 365.25);
+                        annivTag = (cd.title && cd.title.indexOf('生日') >= 0) ? (yrs + ' 岁') : ('第 ' + yrs + ' 周年');
+                    }
 
                     let numberBlock;
                     if(showMemorial) {
-                        const untilLabel = daysUntil === 0 ? '今天 🎉' : daysUntil;
-                        const untilUnit = daysUntil === 0 ? '' : '天';
-                        numberBlock = `<div class="mt-2 space-y-1.5">
-                            <div class="flex items-baseline gap-1.5 drop-shadow-md"><span class="text-xs opacity-80">已经</span><span class="text-3xl font-black tracking-tighter tabular-nums leading-none">${daysSince}</span><span class="text-xs font-medium opacity-80">天</span></div>
-                            <div class="flex items-baseline gap-1.5 drop-shadow-md"><span class="text-xs opacity-80">离下次</span><span class="text-2xl font-bold tracking-tighter tabular-nums leading-none">${untilLabel}</span><span class="text-xs font-medium opacity-80">${untilUnit}</span></div>
-                        </div>`;
+                        const sinceNum = (daysSince !== null) ? daysSince : '—';
+                        const lines = [`<div class="flex items-baseline gap-1.5 drop-shadow-md"><span class="text-xs opacity-85">已经</span><span class="text-4xl font-black tracking-tighter tabular-nums leading-none">${sinceNum}</span><span class="text-xs font-medium opacity-85">天</span>${annivTag ? `<span class="ml-1.5 text-[11px] font-bold bg-white/25 px-1.5 py-0.5 rounded-full whitespace-nowrap">${annivTag}</span>` : ''}</div>`];
+                        if(cd.repeat && cd.repeat !== 'none') {
+                            const untilLabel = daysUntil === 0 ? '今天 🎉' : daysUntil;
+                            const untilUnit = daysUntil === 0 ? '' : '天';
+                            lines.push(`<div class="flex items-baseline gap-1.5 drop-shadow-md"><span class="text-[11px] opacity-80">离下次</span><span class="text-xl font-bold tracking-tighter tabular-nums leading-none">${untilLabel}</span><span class="text-[11px] font-medium opacity-80">${untilUnit}</span></div>`);
+                        }
+                        numberBlock = `<div class="mt-2 space-y-1">${lines.join('')}</div>`;
                     } else {
                         numberBlock = `<div class="mt-2 flex items-baseline gap-1.5 drop-shadow-md"><span class="text-xs opacity-80">${labelStr}</span><span class="text-4xl font-black tracking-tighter tabular-nums leading-none">${days}</span><span class="text-xs font-medium opacity-80">天</span></div>`;
                     }
@@ -3063,9 +3073,10 @@
                         if(tk) tkHtml = `<div class="mt-2 text-[9px] bg-black/20 px-2 py-0.5 rounded-full inline-flex items-center backdrop-blur-sm text-white/90 max-w-full overflow-hidden"><i class="fas fa-link mr-1 opacity-80 flex-shrink-0"></i><span class="truncate">${tk.title}</span></div>`;
                     }
                     
-                    // 徽章组合：农历 + 循环
+                    // 徽章组合：模式 + 农历 + 循环（贴近 Days Matter 的卡片标识）
                     let badgeHtml = '';
                     let badges = [];
+                    if(isMemorial) badges.push('🎉 纪念日'); else badges.push('⏳ 倒数日');
                     if(isLunar) badges.push('📅 农历');
                     if(repeatBadge) badges.push(repeatBadge);
                     if(badges.length) badgeHtml = `<div class="absolute top-2.5 left-2.5 z-20 text-[9px] bg-white/25 backdrop-blur-sm px-1.5 py-0.5 rounded-full text-white font-semibold">${badges.join(' · ')}</div>`;

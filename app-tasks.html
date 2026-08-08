@@ -885,10 +885,18 @@
                             <option value="annual">每年重复（生日 / 纪念日）</option>
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">显示方式</label>
+                        <select id="cd-edit-mode" class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none bg-white">
+                            <option value="countdown">倒数（距离目标还有几天）</option>
+                            <option value="memorial">纪念（已经多少天 · 离下次多少天）</option>
+                        </select>
+                    </div>
                     <div class="flex gap-2 flex-wrap">
                         <button type="button" class="cd-preset text-[11px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 hover:bg-amber-100 transition font-semibold" data-preset="weekend">📅 周末</button>
                         <button type="button" class="cd-preset text-[11px] px-2.5 py-1 rounded-full bg-violet-50 text-violet-600 hover:bg-violet-100 transition font-semibold" data-preset="monthEnd">🗓️ 月底</button>
                         <button type="button" class="cd-preset text-[11px] px-2.5 py-1 rounded-full bg-pink-50 text-pink-600 hover:bg-pink-100 transition font-semibold" data-preset="birthday">🎂 生日</button>
+                        <button type="button" class="cd-preset text-[11px] px-2.5 py-1 rounded-full bg-rose-50 text-rose-600 hover:bg-rose-100 transition font-semibold" data-preset="anniversary">🎉 纪念日</button>
                         <button type="button" class="cd-preset text-[11px] px-2.5 py-1 rounded-full bg-sky-50 text-sky-600 hover:bg-sky-100 transition font-semibold" data-preset="newyear">🎆 新年</button>
                     </div>
                     <div>
@@ -1260,6 +1268,7 @@
                 document.getElementById('cd-edit-title').value = cd ? cd.title : '';
                 document.getElementById('cd-edit-date').value = cd ? cd.date : getTodayStr();
                 document.getElementById('cd-edit-repeat').value = (cd && cd.repeat) ? cd.repeat : 'none';
+                document.getElementById('cd-edit-mode').value = (cd && cd.mode) ? cd.mode : 'countdown';
                 
                 // 历法选择
                 const calType = (cd && cd.calendar) ? cd.calendar : 'solar';
@@ -2830,15 +2839,16 @@
                 const d = document.getElementById('cd-edit-date').value;
                 const tk = document.getElementById('cd-edit-task').value;
                 const rp = document.getElementById('cd-edit-repeat').value;
+                const md = document.getElementById('cd-edit-mode').value;
                 const calType = document.querySelector('input[name="cd-calendar"]:checked');
                 const cal = calType ? calType.value : 'solar';
                 if(!t || !d) return;
 
                 if(state.editingCountdownId) {
                     const cd = state.countdowns.find(x => x.id === state.editingCountdownId);
-                    cd.title = t; cd.date = d; cd.taskId = tk || null; cd.repeat = rp; cd.calendar = cal;
+                    cd.title = t; cd.date = d; cd.taskId = tk || null; cd.repeat = rp; cd.calendar = cal; cd.mode = md;
                 } else {
-                    state.countdowns.push({ id: 'cd'+Date.now(), title: t, date: d, taskId: tk || null, repeat: rp, calendar: cal });
+                    state.countdowns.push({ id: 'cd'+Date.now(), title: t, date: d, taskId: tk || null, repeat: rp, calendar: cal, mode: md });
                 }
                 this.renderCountdowns();
                 modals.closeAll();
@@ -2933,6 +2943,64 @@
                 return baseDate;
             },
 
+            // 计算循环倒数日「上一次」出现日期（最近一次 <= 今天，不存在则返回 null）
+            getPrevCountdownDate(cd) {
+                var baseDate = new Date(cd.date);
+                if(isNaN(baseDate.getTime())) return baseDate;
+                baseDate.setHours(0,0,0,0);
+                var today = new Date(); today.setHours(0,0,0,0);
+
+                if(!cd.repeat || cd.repeat === 'none') return (baseDate <= today) ? baseDate : null;
+
+                if(cd.calendar === 'lunar' && cd.repeat === 'annual' && typeof Lunar !== 'undefined') {
+                    try {
+                        var parts = cd.date.split('-');
+                        var baseSolar = Solar.fromYmd(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]));
+                        var baseLunar = baseSolar.getLunar();
+                        var lunarMonth = Math.abs(baseLunar.getMonth());
+                        var lunarDay = baseLunar.getDay();
+                        var thisYear = today.getFullYear();
+                        var cand = Lunar.fromYmd(thisYear, lunarMonth, lunarDay).getSolar();
+                        var candDate = new Date(cand.getYear(), cand.getMonth() - 1, cand.getDay());
+                        candDate.setHours(0,0,0,0);
+                        if(candDate <= today) return candDate;
+                        var prev = Lunar.fromYmd(thisYear - 1, lunarMonth, lunarDay).getSolar();
+                        var prevDate = new Date(prev.getYear(), prev.getMonth() - 1, prev.getDay());
+                        prevDate.setHours(0,0,0,0);
+                        return prevDate;
+                    } catch(e) { return baseDate <= today ? baseDate : null; }
+                }
+
+                if(cd.repeat === 'weekly') {
+                    var targetDay = baseDate.getDay();
+                    var cur = new Date(today);
+                    var diff = (today.getDay() - targetDay + 7) % 7;
+                    cur.setDate(today.getDate() - diff);
+                    return cur;
+                }
+
+                if(cd.repeat === 'monthly') {
+                    var targetDom = baseDate.getDate();
+                    var dayThis = Math.min(targetDom, new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate());
+                    var candM = new Date(today.getFullYear(), today.getMonth(), dayThis);
+                    candM.setHours(0,0,0,0);
+                    if(candM <= today) return candM;
+                    var dayPrev = Math.min(targetDom, new Date(today.getFullYear(), today.getMonth(), 0).getDate());
+                    return new Date(today.getFullYear(), today.getMonth() - 1, dayPrev);
+                }
+
+                if(cd.repeat === 'annual') {
+                    var targetMonth = baseDate.getMonth();
+                    var targetDay2 = baseDate.getDate();
+                    var candA = new Date(today.getFullYear(), targetMonth, targetDay2);
+                    candA.setHours(0,0,0,0);
+                    if(candA <= today) return candA;
+                    return new Date(today.getFullYear() - 1, targetMonth, targetDay2);
+                }
+
+                return (baseDate <= today) ? baseDate : null;
+            },
+
             renderCountdowns() {
                 const c = document.getElementById('countdown-grid');
                 const t = new Date(); t.setHours(0,0,0,0);
@@ -2962,6 +3030,26 @@
                     
                     const bgStyle = past ? 'from-gray-300 to-gray-400' : styles[idx % 4];
                     const labelStr = isToday ? '今天' : (past ? '已经' : '还有');
+
+                    // 纪念模式：同时显示「已经多少天」与「离下次多少天」
+                    const isMemorial = cd.mode === 'memorial';
+                    const prevDate = isMemorial ? this.getPrevCountdownDate(cd) : null;
+                    const daysUntil = Math.max(0, Math.ceil((nextDate - t) / 86400000));
+                    const daysSince = (prevDate !== null) ? Math.ceil((t - prevDate) / 86400000) : null;
+                    const showMemorial = isMemorial && daysSince !== null;
+                    const prevDateStr = (prevDate !== null) ? _formatLocalDate(prevDate) : '';
+
+                    let numberBlock;
+                    if(showMemorial) {
+                        const untilLabel = daysUntil === 0 ? '今天 🎉' : daysUntil;
+                        const untilUnit = daysUntil === 0 ? '' : '天';
+                        numberBlock = `<div class="mt-2 space-y-1.5">
+                            <div class="flex items-baseline gap-1.5 drop-shadow-md"><span class="text-xs opacity-80">已经</span><span class="text-3xl font-black tracking-tighter tabular-nums leading-none">${daysSince}</span><span class="text-xs font-medium opacity-80">天</span></div>
+                            <div class="flex items-baseline gap-1.5 drop-shadow-md"><span class="text-xs opacity-80">离下次</span><span class="text-2xl font-bold tracking-tighter tabular-nums leading-none">${untilLabel}</span><span class="text-xs font-medium opacity-80">${untilUnit}</span></div>
+                        </div>`;
+                    } else {
+                        numberBlock = `<div class="mt-2 flex items-baseline gap-1.5 drop-shadow-md"><span class="text-xs opacity-80">${labelStr}</span><span class="text-4xl font-black tracking-tighter tabular-nums leading-none">${days}</span><span class="text-xs font-medium opacity-80">天</span></div>`;
+                    }
                     
                     const repeatBadge = repeatLabels[cd.repeat] || '';
                     const isLunar = cd.calendar === 'lunar';
@@ -3008,15 +3096,12 @@
                                     <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 ${past ? 'bg-gray-200' : 'bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]'}"></span> 
                                     <span class="truncate min-w-0">${cd.title}</span>
                                 </div>
-                                <div class="mt-2 flex items-baseline gap-1.5 drop-shadow-md">
-                                    <span class="text-xs opacity-80">${labelStr}</span>
-                                    <span class="text-4xl font-black tracking-tighter tabular-nums leading-none">${days}</span>
-                                    <span class="text-xs font-medium opacity-80">天</span>
-                                </div>
+                                ${numberBlock}
                                 <div class="mt-auto pt-3 flex flex-col items-start gap-1 min-w-0 w-full">
                                     <div class="cd-date-pill text-[10px] font-medium opacity-80 bg-black/10 px-1.5 py-0.5 rounded backdrop-blur-sm">
                                         ${cd.repeat && cd.repeat !== 'none' ? '下次' : '目标日'}: <span class="font-bold font-mono tracking-normal ml-0.5">${nextDateStr}</span>
                                     </div>
+                                    ${showMemorial && prevDateStr ? `<div class="cd-date-pill text-[10px] font-medium opacity-70 bg-black/10 px-1.5 py-0.5 rounded backdrop-blur-sm">上次: <span class="font-bold font-mono tracking-normal ml-0.5">${prevDateStr}</span></div>` : ''}
                                     ${lunarNextStr ? `<div class="text-[9px] opacity-70 px-0.5 max-w-full truncate">📅 ${lunarNextStr}</div>` : (lunarStr ? `<div class="text-[9px] opacity-70 px-0.5 max-w-full truncate">📅 ${lunarStr}</div>` : '')}
                                     ${tkHtml}
                                 </div>
@@ -3276,12 +3361,21 @@
                 } else if(preset === 'birthday') {
                     // 每年重复，农历（中国人生日常用农历），让用户选择日期
                     repeatSel.value = 'annual';
+                    var modeSelB = document.getElementById('cd-edit-mode');
+                    if(modeSelB) modeSelB.value = 'memorial';
                     var lunarRadio = document.querySelector('input[name="cd-calendar"][value="lunar"]');
                     if(lunarRadio) {
                         lunarRadio.checked = true;
                         updateLunarPreview();
                     }
                     if(!titleInput.value) titleInput.value = '生日';
+                    dateInput.focus();
+                } else if(preset === 'anniversary') {
+                    // 每年重复 + 纪念模式（已过去多少天 + 离下次多少天）
+                    repeatSel.value = 'annual';
+                    var modeSelA = document.getElementById('cd-edit-mode');
+                    if(modeSelA) modeSelA.value = 'memorial';
+                    if(!titleInput.value) titleInput.value = '纪念日';
                     dateInput.focus();
                 } else if(preset === 'newyear') {
                     // 下一个元旦

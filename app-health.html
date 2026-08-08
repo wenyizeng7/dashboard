@@ -92,6 +92,7 @@
       <h2 class="text-base font-black text-slate-800">🏃 添加运动</h2>
       <button onclick="app.closeExModal()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400"><i class="fas fa-times"></i></button>
     </div>
+    <p id="ex-record-hint" class="text-[11px] text-slate-400 mb-1"></p>
     <div class="space-y-3">
       <div>
         <label class="text-xs font-bold text-slate-400">运动类型</label>
@@ -230,7 +231,7 @@ const RANGES = [
 const app = {
   state:null, currentTab:'water', selectedExType:'跑步', currentMeal:'breakfast',
   waterRange:'month', exRange:'month',
-  waterActiveDate:null, dietActiveDate:null,
+  waterActiveDate:null, dietActiveDate:null, exerciseActiveDate:null,
   weightRange:'year', weightDateFrom:'', weightDateTo:'',
   waistRange:'year', waistDateFrom:'', waistDateTo:'',
   dietStatRange:'month', dietCalRange:'month', dietCalDateFrom:'',
@@ -1265,20 +1266,29 @@ const app = {
 
   /* ===== EXERCISE ===== */
   setExRange(r){ this.exRange=r; this.renderExercise(); },
+  setExerciseActiveDate(){
+    var el=document.getElementById('exActiveDateInput');
+    if(el&&el.value) this.exerciseActiveDate=el.value;
+    this.renderExercise();
+  },
 
   renderExercise(){
     var self=this;
     var today=this.todayStr();
-    var todayEx=this.state.exercise[today]||[];
+    var activeDate=this.exerciseActiveDate||today;
+    var isActiveToday=(activeDate===today);
+    var todayEx=this.state.exercise[activeDate]||[];
     var todayCal=todayEx.reduce(function(s,e){return s+(e.cal||0);},0);
     var todayMin=todayEx.reduce(function(s,e){return s+(e.duration||0);},0);
 
     var html='<div class="card bg-white rounded-2xl p-5 mb-4 shadow-sm border border-slate-100">'+
-      '<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-base">🏃 今日运动</h2>'+
-      '<button onclick="app.openExModal()" class="px-3 py-1.5 rounded-lg bg-teal-50 text-teal-600 text-xs font-bold">+ 添加</button></div>'+
+      '<div class="flex items-center justify-between mb-3 gap-2 flex-wrap"><h2 class="font-bold text-base">🏃 运动记录</h2>'+
+      '<div class="flex items-center gap-2">'+
+      '<input type="date" id="exActiveDateInput" value="'+activeDate+'" class="text-xs px-2 py-1 rounded-lg border border-slate-200 outline-none focus:border-teal-400" onchange="app.setExerciseActiveDate()">'+
+      '<button onclick="app.openExModal()" class="px-3 py-1.5 rounded-lg bg-teal-50 text-teal-600 text-xs font-bold whitespace-nowrap">+ 添加</button></div></div>'+
       '<div class="grid grid-cols-2 gap-3 mb-4"><div class="bg-teal-50 rounded-xl p-3 text-center"><div class="text-3xl font-black text-teal-500">'+todayCal+'</div><div class="text-[10px] text-slate-400 font-semibold">消耗 kcal</div></div>'+
       '<div class="bg-violet-50 rounded-xl p-3 text-center"><div class="text-3xl font-black text-violet-500">'+todayMin+'</div><div class="text-[10px] text-slate-400 font-semibold">运动分钟</div></div></div>'+
-      (todayEx.length===0?'<p class="text-xs text-slate-300 text-center py-2">今天还没有运动记录</p>':
+      (todayEx.length===0?'<p class="text-xs text-slate-300 text-center py-2">'+(isActiveToday?'今天还没有运动记录':'这一天还没有运动记录')+'</p>':
         todayEx.map(function(e,i){
           var t=EX_TYPES.find(function(t){return t.name===e.type;})||EX_TYPES[EX_TYPES.length-1];
           return '<div class="food-item flex items-center justify-between py-2.5 border-b border-slate-50 last:border-0"><div class="flex items-center gap-2"><span class="text-xl">'+t.icon+'</span><div><div class="text-sm font-semibold text-slate-700">'+e.type+'</div><div class="text-[11px] text-slate-400">'+e.duration+'分钟'+(e.note?' · '+e.note:'')+'</div></div></div><div class="flex items-center gap-2"><span class="text-sm font-bold text-teal-500">'+(e.cal||0)+'</span><span class="text-[10px] text-slate-400">kcal</span><button onclick="app.deleteExercise('+i+')" class="text-slate-300 hover:text-red-400 text-xs ml-1"><i class="fas fa-trash"></i></button></div></div>';
@@ -1320,6 +1330,8 @@ const app = {
 
   openExModal(){
     this.selectedExType='跑步';
+    var hint=document.getElementById('ex-record-hint');
+    if(hint) hint.textContent='记录到：'+(this.exerciseActiveDate||this.todayStr());
     document.getElementById('ex-duration').value='';
     document.getElementById('ex-cal').value='';
     document.getElementById('ex-note').value='';
@@ -1348,14 +1360,14 @@ const app = {
       var wkg=lw?lw.value:60;
       cal=Math.round(exType.met*wkg*duration/60);
     }
-    var today=this.todayStr();
+    var today=this.exerciseActiveDate||this.todayStr();
     if(!this.state.exercise[today]) this.state.exercise[today]=[];
     this.state.exercise[today].push({type:this.selectedExType,duration:duration,cal:cal,note:note});
     this.saveState(); this.closeExModal(); this.renderExercise();
     this.toast('✅ 运动已记录');
   },
   deleteExercise(idx){
-    var today=this.todayStr();
+    var today=this.exerciseActiveDate||this.todayStr();
     if(this.state.exercise[today]){
       this.state.exercise[today].splice(idx,1);
       if(this.state.exercise[today].length===0) delete this.state.exercise[today];

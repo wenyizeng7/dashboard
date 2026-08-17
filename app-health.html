@@ -1766,14 +1766,14 @@ const app = {
       '<button onclick="app.setCycleView(\'calendar\')" class="cycle-tab flex-1 py-2 rounded-lg text-xs font-bold '+(this.cycleView==='calendar'?'active':'text-slate-500')+'">📅 日历视图</button>'+
       '<button onclick="app.setCycleView(\'ring\')" class="cycle-tab flex-1 py-2 rounded-lg text-xs font-bold '+(this.cycleView==='ring'?'active':'text-slate-500')+'">🔵 周期视图</button></div>';
 
-    // 紧凑 Hero（移除绝对定位的心形图标，避免产生空白区；用纯渐变背景）
-    var hero='<div class="bg-gradient-to-br from-rose-500 to-pink-500 rounded-2xl px-4 py-3 mb-3 text-white shadow-lg">'+
+    // 紧凑 Hero（用内联渐变保证一定可见，去掉所有 opacity 让文字全白清晰）
+    var hero='<div class="rounded-2xl px-4 py-3 mb-3 text-white shadow-lg" style="background:linear-gradient(135deg,#f43f5e 0%,#ec4899 100%);">'+
       '<div class="flex items-end justify-between gap-3">'+
         '<div>'+
-          '<div class="text-[11px] opacity-90 font-medium leading-tight">'+heroLabel+'</div>'+
-          '<div class="text-3xl font-black tracking-tight leading-tight mt-0.5"><span class="inline-block">'+heroNum+'</span> <span class="text-sm font-bold align-middle">天</span></div>'+
+          '<div class="text-xs font-bold leading-tight" style="color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.15);">'+heroLabel+'</div>'+
+          '<div class="text-3xl font-black tracking-tight leading-tight mt-1" style="color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.2);"><span class="inline-block">'+heroNum+'</span> <span class="text-base font-bold align-middle">天</span></div>'+
         '</div>'+
-        '<div class="text-right text-[10px] opacity-85 leading-tight pb-1">'+
+        '<div class="text-right text-[11px] font-semibold leading-tight pb-1" style="color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.15);">'+
           '<div>周期共 '+(c.cycleLength||28)+' 天</div>'+
           (curStart?'<div class="mt-0.5">上次经期 '+this.fmtShort(curStart)+'</div>':'')+
         '</div>'+

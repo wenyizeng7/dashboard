@@ -1817,9 +1817,11 @@ const app = {
       var cs=c.lastPeriodStart;
       var off=this.diffDays(cs, today);
       var pl=c.periodLength||7;
-      var open=(c.periodExtend&&c.periodExtend[cs]) || (off>=0 && off>=pl-2);
+      var extend=(c.periodExtend&&c.periodExtend[cs]);
+      var open=extend || (off>=0 && off>=pl-2);
       var notEnded=!(c.periodEnds&&c.periodEnds[cs]);
-      var notSnoozed=!(c.periodEndSnooze&&c.periodEndSnooze[cs]===today);
+      // 处于“继续延长”模式时不再受 snooze 限制，始终可点“已结束”收尾，避免一直染色到今天
+      var notSnoozed=extend ? true : !(c.periodEndSnooze&&c.periodEndSnooze[cs]===today);
       if(open && notEnded && notSnoozed && off>=0) showEndPrompt=true;
     }
     var endPrompt = showEndPrompt ?
@@ -1998,7 +2000,9 @@ const app = {
   confirmPeriodEnded(){
     var c=this.state.cycle; var cs=c.lastPeriodStart; if(!cs) return;
     if(!c.periodEnds) c.periodEnds={};
-    c.periodEnds[cs]=this.todayStr();
+    // 经期结束日 = 开始日 + (经期天数-1)，严格按“开始日后算七天”的固定长度收尾，
+    // 不再用 todayStr()，避免晚点才确认时把结束日推到今天、染色一直拖到今天。
+    c.periodEnds[cs]=this.addDays(cs, (c.periodLength||7)-1);
     if(c.periodExtend) delete c.periodExtend[cs];
     if(c.periodEndSnooze) delete c.periodEndSnooze[cs];
     this.saveState(); this.renderCycle(); this.toast('✅ 已确认经期结束，已据此推算下次');

@@ -359,8 +359,12 @@ const app = {
     if(!this.state.waist) this.state.waist=[];
     if(!this.state.diet) this.state.diet={};
     if(!this.state.exercise) this.state.exercise={};
-    if(!this.state.cycle){ this.state.cycle={ cycleLength:28, periodLength:5, lutealLength:14, lastPeriodStart:null, periods:{}, sex:{}, mood:{}, symptoms:{}, bbt:{}, notes:{} }; }
+    if(!this.state.cycle){ this.state.cycle={ cycleLength:28, periodLength:7, lutealLength:14, lastPeriodStart:null, periods:{}, sex:{}, mood:{}, symptoms:{}, bbt:{}, notes:{}, periodEnds:{}, periodExtend:{}, periodEndSnooze:{} }; }
+    if(!this.state.cycle.periodEnds) this.state.cycle.periodEnds={};
+    if(!this.state.cycle.periodExtend) this.state.cycle.periodExtend={};
+    if(!this.state.cycle.periodEndSnooze) this.state.cycle.periodEndSnooze={};
     if(!this.state.cycle.notes) this.state.cycle.notes={};
+    if(!this.state.cycle.periodLength || this.state.cycle.periodLength===5) this.state.cycle.periodLength=7; // 旧数据默认 5 天，统一升级为 7 天
     if(!this.state.settings) this.state.settings={waterGoal:8,weightGoal:null,waistGoal:null};
     if(!this.state.quickPicks){
       this.state.quickPicks=Object.keys(FOOD_DB).map(function(n){return{name:n,calPer100g:FOOD_DB[n].calPer100g};});
@@ -1687,7 +1691,7 @@ const app = {
   },
   classifyDay(date){
     var c=this.state.cycle;
-    var cl=c.cycleLength||28, pl=c.periodLength||5, ll=c.lutealLength||14;
+    var cl=c.cycleLength||28, pl=c.periodLength||7, ll=c.lutealLength||14;
     // 显式记录的经期日（无论是否对齐周期推算）一律算经期
     if(c.periods[date]){
       var prev=this.addDays(date,-1);
@@ -1698,11 +1702,13 @@ const app = {
     for(var i=0;i<starts.length;i++){ if(this.diffDays(starts[i],date)>=0) cur=starts[i]; }
     if(!cur) return {type:'other'};
     var off=this.diffDays(cur,date);
+    var endsAt=this.effectivePeriodEnd(cur);
+    var offEnd=this.diffDays(date,endsAt); // >=0 表示 date<=endsAt（含已确认结束/继续延长的情况）
     var next=this.addDays(cur,cl);
     var offNext=this.diffDays(date,next);
     var ovu=this.addDays(cur,cl-ll);
     var today=this.todayStr();
-    if(off>=0 && off<pl){
+    if(off>=0 && offEnd>=0){
       var isFuture=this.diffDays(today,date)>0;
       if(c.periods[date]||!isFuture) return {type:'period', first:off===0, logged:!!c.periods[date]};
       return {type:'predict'};
@@ -1712,6 +1718,12 @@ const app = {
     var offOvu=this.diffDays(ovu,date);
     if(offOvu>=-5 && offOvu<=1) return {type:'fertile'};
     return {type:'other'};
+  },
+  effectivePeriodEnd(s){
+    var c=this.state.cycle;
+    if(c.periodEnds && c.periodEnds[s]) return c.periodEnds[s];
+    if(c.periodExtend && c.periodExtend[s]) return this.todayStr();
+    return this.addDays(s, (c.periodLength||7)-1);
   },
   nextPeriodStart(){
     var starts=this.periodStarts(); var today=this.todayStr();
@@ -1799,6 +1811,27 @@ const app = {
 
     var bbtInner=this.renderBbtCard();
 
+    // 经期快结束时询问「是否已结束」（默认 7 天，最后 2 天或已点「还没」继续延长时弹出）
+    var showEndPrompt=false;
+    if(c.lastPeriodStart){
+      var cs=c.lastPeriodStart;
+      var off=this.diffDays(cs, today);
+      var pl=c.periodLength||7;
+      var open=(c.periodExtend&&c.periodExtend[cs]) || (off>=0 && off>=pl-2);
+      var notEnded=!(c.periodEnds&&c.periodEnds[cs]);
+      var notSnoozed=!(c.periodEndSnooze&&c.periodEndSnooze[cs]===today);
+      if(open && notEnded && notSnoozed && off>=0) showEndPrompt=true;
+    }
+    var endPrompt = showEndPrompt ?
+      '<div class="cyc-endprompt rounded-xl px-4 py-3 mb-3" style="background:#fff1f2;border:1px solid #fecdd3;">'+
+        '<div class="text-sm font-bold text-rose-600">🌸 经期快结束啦</div>'+
+        '<div class="text-xs text-slate-500 mt-0.5">本次经期已接近尾声，是否已经结束了？确认后方便推算下一次～</div>'+
+        '<div class="flex gap-2 mt-2">'+
+          '<button onclick="app.confirmPeriodEnded()" class="flex-1 py-2 rounded-lg text-xs font-bold text-white" style="background:#e11d48;">✓ 已结束</button>'+
+          '<button onclick="app.snoozePeriodEnd()" class="flex-1 py-2 rounded-lg text-xs font-bold bg-white text-slate-500 border border-slate-200">还没呢</button>'+
+        '</div>'+
+      '</div>' : '';
+
     // 底部操作区使用的「记录日期」(默认今天，可任意切换)
     var actDate = this.cycleActiveDate || today;
     var actToday = (actDate===today);
@@ -1852,7 +1885,7 @@ const app = {
       row('rose','🤒','身体症状','symptoms',rec.symptoms,'➕')+
       '</div>';
 
-    container.innerHTML = viewToggle + hero + mainCard;
+    container.innerHTML = viewToggle + hero + endPrompt + mainCard;
   },
 
   renderCycleCalendar(){
@@ -1904,7 +1937,7 @@ const app = {
 
   renderCycleRing(){
     var c=this.state.cycle;
-    var cl=c.cycleLength||28, pl=c.periodLength||5, ll=c.lutealLength||14;
+    var cl=c.cycleLength||28, pl=c.periodLength||7, ll=c.lutealLength||14;
     var r=52, cx=60, cy=60, C=2*Math.PI*r;
     function arc(f0, fLen, color, w){
       var len=fLen*C; var off=-f0*C;
@@ -1959,7 +1992,23 @@ const app = {
     var actDate = this.cycleActiveDate || this.todayStr();
     var c=this.state.cycle;
     if(c.periods[actDate]){ delete c.periods[actDate]; this.toast('已取消该日经期记录'); }
-    else { c.periods[actDate]={flow:2, cramp:0}; c.lastPeriodStart=actDate; this.toast('✅ 已记录为经期开始'); }
+    else { c.periods[actDate]={flow:2, cramp:0}; c.lastPeriodStart=actDate; if(c.periodEnds) delete c.periodEnds[actDate]; if(c.periodExtend) delete c.periodExtend[actDate]; if(c.periodEndSnooze) delete c.periodEndSnooze[actDate]; this.toast('✅ 已记录为经期开始'); }
+    this.saveState(); this.renderCycle();
+  },
+  confirmPeriodEnded(){
+    var c=this.state.cycle; var cs=c.lastPeriodStart; if(!cs) return;
+    if(!c.periodEnds) c.periodEnds={};
+    c.periodEnds[cs]=this.todayStr();
+    if(c.periodExtend) delete c.periodExtend[cs];
+    if(c.periodEndSnooze) delete c.periodEndSnooze[cs];
+    this.saveState(); this.renderCycle(); this.toast('✅ 已确认经期结束，已据此推算下次');
+  },
+  snoozePeriodEnd(){
+    var c=this.state.cycle; var cs=c.lastPeriodStart; if(!cs) return;
+    if(!c.periodExtend) c.periodExtend={};
+    if(!c.periodEndSnooze) c.periodEndSnooze={};
+    c.periodExtend[cs]=true;            // 继续延长：日历保持上色直到确认结束
+    c.periodEndSnooze[cs]=this.todayStr(); // 今天不再弹，明天再问
     this.saveState(); this.renderCycle();
   },
   setPeriodFlow(lv){
@@ -1992,7 +2041,7 @@ const app = {
     if(!starts.length){ document.getElementById('cycle-health-body').innerHTML='<div class="text-center text-sm text-slate-400 py-10">还没有经期记录，无法汇总数据</div>'; document.getElementById('cycle-health-modal').classList.remove('hidden'); return; }
     var rows=[];
     starts.forEach(function(s){
-      var e=self.addDays(s, (c.periodLength||5)-1);
+      var e=self.addDays(s, (c.periodLength||7)-1);
       var days=self.diffDays(s,e)+1;
       var water=0, waterDays=0, dietCal=0, dietDays=0, exMin=0, exCal=0, exDays=0, weightSum=0, weightN=0;
       for(var d=new Date(s); self.diffDays(self.dateToStr(d),e)<=0; d.setDate(d.getDate()+1)){

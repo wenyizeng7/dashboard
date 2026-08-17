@@ -254,8 +254,6 @@
     <div class="flex gap-1 mb-4">
       <button id="cyc-rtab-sex" onclick="app.setRecordTab('sex')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-500">性行为</button>
       <button id="cyc-rtab-symptoms" onclick="app.setRecordTab('symptoms')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-500">身体症状</button>
-      <button id="cyc-rtab-mood" onclick="app.setRecordTab('mood')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-500">心情记录</button>
-      <button id="cyc-rtab-more" onclick="app.setRecordTab('more')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-500">更多记录</button>
     </div>
     <div class="mb-3">
       <label class="text-xs font-bold text-slate-400">日期</label>
@@ -1690,6 +1688,11 @@ const app = {
   classifyDay(date){
     var c=this.state.cycle;
     var cl=c.cycleLength||28, pl=c.periodLength||5, ll=c.lutealLength||14;
+    // 显式记录的经期日（无论是否对齐周期推算）一律算经期
+    if(c.periods[date]){
+      var prev=this.addDays(date,-1);
+      return {type:'period', first:!c.periods[prev], logged:true};
+    }
     var starts=this.periodStarts();
     var cur=null;
     for(var i=0;i<starts.length;i++){ if(this.diffDays(starts[i],date)>=0) cur=starts[i]; }
@@ -1956,7 +1959,7 @@ const app = {
     var actDate = this.cycleActiveDate || this.todayStr();
     var c=this.state.cycle;
     if(c.periods[actDate]){ delete c.periods[actDate]; this.toast('已取消该日经期记录'); }
-    else { c.periods[actDate]={flow:2, cramp:0}; if(!c.lastPeriodStart) c.lastPeriodStart=actDate; this.toast('✅ 已记录为经期开始'); }
+    else { c.periods[actDate]={flow:2, cramp:0}; c.lastPeriodStart=actDate; this.toast('✅ 已记录为经期开始'); }
     this.saveState(); this.renderCycle();
   },
   setPeriodFlow(lv){
@@ -1976,7 +1979,7 @@ const app = {
     this.recordTab=tab||'sex';
     if(date) this.cycleRecordDate=date; else if(!this.cycleRecordDate) this.cycleRecordDate=this.todayStr();
     var c=this.state.cycle; var d=this.cycleRecordDate;
-    this._cycSel={ sex: c.sex[d]||'none', symptoms: (c.symptoms[d]||[]).slice(), mood:(c.mood[d]||[]).slice() };
+    this._cycSel={ sex: c.sex[d]||'none', symptoms: (c.symptoms[d]||[]).slice() };
     document.getElementById('cyc-record-date').value=d;
     this.setRecordTab(this.recordTab);
     document.getElementById('cycle-record-modal').classList.remove('hidden');
@@ -2020,8 +2023,8 @@ const app = {
     document.getElementById('cycle-health-modal').classList.remove('hidden');
   },
   closeCycleHealth(){ document.getElementById('cycle-health-modal').classList.add('hidden'); },
-  cycleRecordDateChange(){ this.cycleRecordDate=document.getElementById('cyc-record-date').value; var c=this.state.cycle; var d=this.cycleRecordDate; this._cycSel={ sex:c.sex[d]||'none', symptoms:(c.symptoms[d]||[]).slice(), mood:(c.mood[d]||[]).slice() }; this.renderRecordBody(); },
-  setRecordTab(tab){ this.recordTab=tab; ['sex','symptoms','mood','more'].forEach(function(t){ var b=document.getElementById('cyc-rtab-'+t); if(!b) return; if(t===tab){ b.className='flex-1 py-2 rounded-lg text-xs font-bold bg-rose-500 text-white'; } else { b.className='flex-1 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-500'; } }); this.renderRecordBody(); },
+  cycleRecordDateChange(){ this.cycleRecordDate=document.getElementById('cyc-record-date').value; var c=this.state.cycle; var d=this.cycleRecordDate; this._cycSel={ sex:c.sex[d]||'none', symptoms:(c.symptoms[d]||[]).slice() }; this.renderRecordBody(); },
+  setRecordTab(tab){ this.recordTab=tab; ['sex','symptoms'].forEach(function(t){ var b=document.getElementById('cyc-rtab-'+t); if(!b) return; if(t===tab){ b.className='flex-1 py-2 rounded-lg text-xs font-bold bg-rose-500 text-white'; } else { b.className='flex-1 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-500'; } }); this.renderRecordBody(); },
   pickSex(k){ this._cycSel.sex=k; this.renderRecordBody(); },
   toggleCycSym(k){ var a=this._cycSel.symptoms; var i=a.indexOf(k); if(i>=0)a.splice(i,1); else a.push(k); this.renderRecordBody(); },
   toggleCycMood(k){ var a=this._cycSel.mood; var i=a.indexOf(k); if(i>=0)a.splice(i,1); else a.push(k); this.renderRecordBody(); },
@@ -2037,13 +2040,6 @@ const app = {
         html+='</div></div>';
       });
       html+='</div>';
-    } else if(tab==='mood'){
-      html='<div class="flex flex-wrap gap-2">'+CYCLE_MOOD.map(function(s){ var sel=self._cycSel.mood.indexOf(s.k)>=0; return '<button onclick="app.toggleCycMood(\''+s.k+'\')" class="cyc-chip '+(sel?'sel':'bg-white border-2 border-slate-200 text-slate-600')+' rounded-xl px-3 py-2 flex items-center gap-1.5"><span class="text-xl">'+s.i+'</span><span class="text-xs font-bold">'+s.l+'</span></button>'; }).join('')+'</div>';
-    } else if(tab==='more'){
-      var c=self.state.cycle; var d=self.cycleRecordDate;
-      var note=(c.notes&&c.notes[d])?c.notes[d]:'';
-      html='<div class="space-y-3"><div><label class="text-xs font-bold text-slate-400">基础体温（℃）</label><input id="cyc-bbt" type="number" step="0.01" placeholder="如 36.50" value="'+(c.bbt[d]||'')+'" class="w-full mt-1 px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-rose-400 outline-none"></div>'+
-        '<div><label class="text-xs font-bold text-slate-400">备注</label><input id="cyc-note" type="text" placeholder="选填" value="'+note+'" class="w-full mt-1 px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-rose-400 outline-none"></div></div>';
     }
     document.getElementById('cyc-record-body').innerHTML=html;
   },
@@ -2051,8 +2047,6 @@ const app = {
     var date=this.cycleRecordDate; var c=this.state.cycle; var tab=this.recordTab;
     if(tab==='sex'){ if(this._cycSel.sex && this._cycSel.sex!=='none') c.sex[date]=this._cycSel.sex; else delete c.sex[date]; }
     else if(tab==='symptoms'){ if(this._cycSel.symptoms.length) c.symptoms[date]=this._cycSel.symptoms.slice(); else delete c.symptoms[date]; }
-    else if(tab==='mood'){ if(this._cycSel.mood.length) c.mood[date]=this._cycSel.mood.slice(); else delete c.mood[date]; }
-    else if(tab==='more'){ var v=parseFloat(document.getElementById('cyc-bbt').value); if(!isNaN(v)) c.bbt[date]=v; else delete c.bbt[date]; var nt=document.getElementById('cyc-note').value; if(!c.notes) c.notes={}; if(nt) c.notes[date]=nt; else delete c.notes[date]; }
     this.saveState(); this.closeRecordModal(); this.renderCycle(); this.toast('✅ 已保存');
   },
 

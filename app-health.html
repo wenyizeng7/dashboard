@@ -65,7 +65,8 @@
   .cyc-datebar { display:flex; align-items:center; gap:8px; padding:8px 14px; background:#f8fafc; border-bottom:1px solid #f1f5f9; }
   .cyc-datebar .label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; }
   .cyc-datebar .nav-btn { width:26px; height:26px; border-radius:50%; background:#fff; color:#94a3b8; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,.05); }
-  .cyc-datebar .date { font-size:13px; font-weight:700; color:#334155; min-width:90px; text-align:center; }
+  .cyc-datebar .date { font-size:13px; font-weight:700; color:#334155; min-width:90px; text-align:center; cursor:pointer; padding:2px 6px; border-radius:6px; }
+  .cyc-datebar .date:hover { background:#e2e8f0; }
   .cyc-datebar .today-btn { font-size:10px; font-weight:700; padding:3px 8px; border-radius:10px; background:#ffe4e6; color:#e11d48; }
   .cyc-datebar .today-btn.active { background:#e11d48; color:#fff; }
 </style>
@@ -1381,6 +1382,7 @@ const app = {
   cycleActPrev(){ var d=this.cycleActiveDate||this.todayStr(); this.cycleActiveDate=this.dateToStr(this.addDays(d,-1)); this.renderCycle(); },
   cycleActNext(){ var d=this.cycleActiveDate||this.todayStr(); this.cycleActiveDate=this.dateToStr(this.addDays(d,1)); this.renderCycle(); },
   cycleActDateChange(){ var el=document.getElementById('cycActiveDateInput'); if(el&&el.value){ this.cycleActiveDate=el.value; this.renderCycle(); } },
+  cycleActPickDate(){ var el=document.getElementById('cycActiveDateInput'); if(!el) return; try{ if(typeof el.showPicker==='function'){ el.showPicker(); return; } }catch(e){} el.focus(); try{ el.click(); }catch(e){} },
   cycleRecSummary(d){
     var c=this.state.cycle;
     return {
@@ -1818,9 +1820,10 @@ const app = {
     var dateBar='<div class="cyc-datebar">'+
       '<span class="label">记录日期</span>'+
       '<button class="nav-btn" onclick="app.cycleActPrev()"><i class="fas fa-chevron-left text-xs"></i></button>'+
-      '<span class="date">'+this.fmtShort(actDate)+'</span>'+
+      '<span class="date" onclick="app.cycleActPickDate()" title="点击选择任意日期">'+this.fmtShort(actDate)+'</span>'+
       '<button class="nav-btn" onclick="app.cycleActNext()"><i class="fas fa-chevron-right text-xs"></i></button>'+
       '<button class="today-btn '+(actToday?'active':'')+'" onclick="app.cycleActToday()">今天</button>'+
+      '<input type="date" id="cycActiveDateInput" value="'+actDate+'" class="hidden" onchange="app.cycleActDateChange()">'+
       '</div>';
 
     // 单一卡片紧凑布局：日历/周期 + 图例 + 体温 + 日期栏 + 操作区（无多余空白）
@@ -1836,12 +1839,6 @@ const app = {
       subItems+
       row('rose','❤️','性行为','sex',rec.sex,'💕')+
       row('rose','🤒','身体症状','symptoms',rec.symptoms,'➕')+
-      row('amber','😊','心情','mood',rec.mood,'😄')+
-      row('slate','📋','更多记录','more',rec.more,'🌡️')+
-      '<div class="cyc-action-row" onclick="app.openCycleHealth()">'+
-        '<span class="ic slate">📊</span>'+
-        '<span class="lbl">查看生理周期期间的健康数据</span>'+
-        '<span class="ic-arrow">›</span></div>'+
       '</div>';
 
     container.innerHTML = viewToggle + hero + mainCard;

@@ -1818,11 +1818,15 @@ const app = {
       var off=this.diffDays(cs, today);
       var pl=c.periodLength||7;
       var extend=(c.periodExtend&&c.periodExtend[cs]);
-      var open=extend || (off>=0 && off>=pl-2);
-      var notEnded=!(c.periodEnds&&c.periodEnds[cs]);
+      var effEnd=this.effectivePeriodEnd(cs);
+      // stillOpen: 当前经期实际结束日 >= 今天，即日历仍染色到今天或以后（延长模式 / 脏数据把结束日推到今天）
+      var stillOpen=this.diffDays(today, effEnd)>=0;
+      // endedProperly: 已确认结束且结束日已早于今天，这种情况不必再弹询问
+      var endedProperly=(c.periodEnds&&c.periodEnds[cs]) && this.diffDays(effEnd, today)>0;
+      var open=extend || (off>=0 && off>=pl-2) || stillOpen;
       // 处于“继续延长”模式时不再受 snooze 限制，始终可点“已结束”收尾，避免一直染色到今天
       var notSnoozed=extend ? true : !(c.periodEndSnooze&&c.periodEndSnooze[cs]===today);
-      if(open && notEnded && notSnoozed && off>=0) showEndPrompt=true;
+      if(open && !endedProperly && notSnoozed && off>=0) showEndPrompt=true;
     }
     var endPrompt = showEndPrompt ?
       '<div class="cyc-endprompt rounded-xl px-4 py-3 mb-3" style="background:#fff1f2;border:1px solid #fecdd3;">'+

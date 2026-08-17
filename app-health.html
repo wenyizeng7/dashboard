@@ -28,6 +28,20 @@
   .qp-item.drag-over { border-color: #0d9488; }
   .heat-cell { border-radius: 3px; transition: transform .1s; }
   .heat-cell:active { transform: scale(1.3); }
+  /* ===== Cycle / 生理周期 ===== */
+  .cycle-tab.active { background: #e11d48; color: #fff; }
+  .cyc-day { width: 100%; aspect-ratio: 1/1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius: 10px; position:relative; font-size: 12px; line-height:1; }
+  .cyc-period { background:#fecdd3; color:#9f1239; font-weight:700; }
+  .cyc-period-first { background:#e11d48; color:#fff; font-weight:700; }
+  .cyc-predict { background:#fff; color:#e11d48; border:1.5px dashed #f43f5e; font-weight:700; }
+  .cyc-fertile { background:#dbeafe; color:#1d4ed8; font-weight:600; }
+  .cyc-ovu { background:#2563eb; color:#fff; font-weight:800; }
+  .cyc-other { background:#f8fafc; color:#94a3b8; }
+  .cyc-today { outline: 2px solid #0f172a; outline-offset: -2px; }
+  .cyc-chip { transition: all .15s; }
+  .cyc-chip.sel { background:#e11d48; color:#fff; border-color:#e11d48; }
+  .cyc-legend { display:flex; flex-wrap:wrap; gap:10px; }
+  .cyc-legend i { width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:middle; }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen pb-20">
@@ -51,6 +65,7 @@
   <button onclick="app.switchTab('weight')" id="tab-weight" class="flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent transition">⚖️ 体重</button>
   <button onclick="app.switchTab('diet')" id="tab-diet" class="flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent transition">🍽️ 食谱</button>
   <button onclick="app.switchTab('exercise')" id="tab-exercise" class="flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent transition">🏃 运动</button>
+  <button onclick="app.switchTab('cycle')" id="tab-cycle" class="flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent transition whitespace-nowrap">🌸 周期</button>
 </nav>
 
 <main class="px-4 pt-4 max-w-3xl mx-auto">
@@ -58,6 +73,7 @@
 <section id="view-weight" class="view-section"><div id="weight-container"></div></section>
 <section id="view-diet" class="view-section"><div id="diet-container"></div></section>
 <section id="view-exercise" class="view-section"><div id="exercise-container"></div></section>
+<section id="view-cycle" class="view-section"><div id="cycle-container"></div></section>
 </main>
 
 <!-- Settings Modal -->
@@ -196,6 +212,28 @@
 <!-- Toast -->
 <div id="toast" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-slate-800 text-white text-xs font-bold shadow-lg toast"></div>
 
+<!-- Cycle Record Modal -->
+<div id="cycle-record-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onclick="if(event.target===this) app.closeRecordModal()">
+  <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-base font-black text-slate-800">📝 记录</h2>
+      <button onclick="app.closeRecordModal()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="flex gap-1 mb-4">
+      <button id="cyc-rtab-sex" onclick="app.setRecordTab('sex')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-500">性行为</button>
+      <button id="cyc-rtab-symptoms" onclick="app.setRecordTab('symptoms')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-500">身体症状</button>
+      <button id="cyc-rtab-mood" onclick="app.setRecordTab('mood')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-500">心情记录</button>
+      <button id="cyc-rtab-more" onclick="app.setRecordTab('more')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-500">更多记录</button>
+    </div>
+    <div class="mb-3">
+      <label class="text-xs font-bold text-slate-400">日期</label>
+      <input id="cyc-record-date" type="date" class="w-full mt-1 px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-rose-400 outline-none" onchange="app.cycleRecordDateChange()">
+    </div>
+    <div id="cyc-record-body"></div>
+    <button onclick="app.saveCycleRecord()" class="w-full mt-4 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-sm">完成</button>
+  </div>
+</div>
+
 <script>
 const STORAGE_KEY = 'health_pro_state';
 
@@ -228,6 +266,31 @@ const RANGES = [
   {key:'week',label:'周'},{key:'month',label:'月'},{key:'quarter',label:'季'},{key:'year',label:'年'}
 ];
 
+/* ===== 生理周期：症状/性行为/心情 目录 ===== */
+const CYCLE_SYMPTOMS = {
+  '全身': [
+    {k:'normal',l:'一切正常',i:'✅'},{k:'cramp',l:'抽筋',i:'💪'},{k:'fatigue',l:'疲劳',i:'😴'},{k:'bloat',l:'浮肿',i:'🎈'}
+  ],
+  '头部': [
+    {k:'headache',l:'头痛',i:'🤕'},{k:'vomit',l:'呕吐',i:'🤮'},{k:'insomnia',l:'失眠',i:'😵'},{k:'dizzy',l:'眩晕',i:'💫'}
+  ],
+  '腹部': [
+    {k:'abdistend',l:'腹部胀痛',i:'🫄'},{k:'abcramp',l:'腹部绞痛',i:'😣'},{k:'diarrhea',l:'腹泻',i:'💩'},{k:'lowpain',l:'小腹坠痛',i:'🔻'}
+  ],
+  '其他': [
+    {k:'hotflash',l:'潮热',i:'🔥'},{k:'spotting',l:'点滴出血',i:'🩸'},{k:'dis_dry',l:'分泌物·干燥',i:'🟫'},{k:'dis_sticky',l:'分泌物·粘稠',i:'🟤'},
+    {k:'dis_egg',l:'分泌物·蛋清状',i:'⚪'},{k:'dis_watery',l:'分泌物·水状',i:'💧'},{k:'dis_lotion',l:'分泌物·乳液状',i:'🥛'},
+    {k:'skin_good',l:'皮肤·好',i:'😊'},{k:'skin_oil',l:'皮肤·出油',i:'🛢️'},{k:'skin_dry',l:'皮肤·干燥',i:'🍂'},{k:'skin_pimple',l:'皮肤·粉刺',i:'🔴'},{k:'skin_acne',l:'皮肤·冒痘',i:'🌋'}
+  ]
+};
+const CYCLE_SEX = [
+  {k:'none',l:'无',i:'🚫'},{k:'protected',l:'保护性行为',i:'🛡️'},{k:'unprotected',l:'无保护性行为',i:'⚠️'}
+];
+const CYCLE_MOOD = [
+  {k:'happy',l:'开心',i:'😄'},{k:'calm',l:'平静',i:'😌'},{k:'anxious',l:'焦虑',i:'😰'},{k:'sensitive',l:'敏感',i:'🥺'},{k:'sad',l:'低落',i:'😢'},{k:'irritable',l:'易怒',i:'😠'}
+];
+
+
 const app = {
   state:null, currentTab:'water', selectedExType:'跑步', currentMeal:'breakfast',
   waterRange:'month', exRange:'month',
@@ -236,6 +299,7 @@ const app = {
   waistRange:'year', waistDateFrom:'', waistDateTo:'',
   dietStatRange:'month', dietCalRange:'month', dietCalDateFrom:'',
   dietImageData:'', dragIdx:null,
+  cycleView:'calendar', cycleMonth:null, recordTab:'sex', cycleRecordDate:null,
 
   init(){
     this.loadState();
@@ -255,6 +319,8 @@ const app = {
     if(!this.state.waist) this.state.waist=[];
     if(!this.state.diet) this.state.diet={};
     if(!this.state.exercise) this.state.exercise={};
+    if(!this.state.cycle){ this.state.cycle={ cycleLength:28, periodLength:5, lutealLength:14, lastPeriodStart:null, periods:{}, sex:{}, mood:{}, symptoms:{}, bbt:{}, notes:{} }; }
+    if(!this.state.cycle.notes) this.state.cycle.notes={};
     if(!this.state.settings) this.state.settings={waterGoal:8,weightGoal:null,waistGoal:null};
     if(!this.state.quickPicks){
       this.state.quickPicks=Object.keys(FOOD_DB).map(function(n){return{name:n,calPer100g:FOOD_DB[n].calPer100g};});
@@ -277,10 +343,12 @@ const app = {
     var ab=document.getElementById('tab-'+tab);
     ab.classList.add('text-teal-600','border-teal-500');
     ab.classList.remove('text-slate-400','border-transparent');
+    if(tab==='cycle'){ ab.classList.remove('text-teal-600','border-teal-500'); ab.classList.add('text-rose-600','border-rose-500'); }
     if(tab==='water') this.renderWater();
     if(tab==='weight') this.renderWeight();
     if(tab==='diet') this.renderDiet();
     if(tab==='exercise') this.renderExercise();
+    if(tab==='cycle') this.renderCycle();
   },
 
   toast(msg){
@@ -293,7 +361,7 @@ const app = {
   bindKeys(){
     document.addEventListener('keydown',function(e){
       if(e.key==='Escape'){
-        ['settings-modal','ex-modal','diet-modal','weight-modal','waist-modal','qp-modal'].forEach(function(id){
+        ['settings-modal','ex-modal','diet-modal','weight-modal','waist-modal','qp-modal','cycle-record-modal'].forEach(function(id){
           document.getElementById(id).classList.add('hidden');
         });
       }
@@ -1542,6 +1610,250 @@ const app = {
     });
     html+='</div></div>';
     detail.innerHTML=html;
+  },
+
+  /* ===== 生理周期 / CYCLE ===== */
+  parseDate(s){ return new Date(s+'T00:00:00'); },
+  addDays(s,n){ var d=this.parseDate(s); d.setDate(d.getDate()+n); return this.dateToStr(d); },
+  diffDays(a,b){ return Math.round((this.parseDate(b)-this.parseDate(a))/86400000); },
+  fmtShort(s){ var d=this.parseDate(s); return (d.getMonth()+1)+'月'+d.getDate()+'日'; },
+
+  periodStarts(){
+    var c=this.state.cycle; var cl=c.cycleLength||28;
+    var anchor=c.lastPeriodStart||this.todayStr();
+    var starts=[anchor];
+    var s=anchor;
+    for(var i=0;i<4;i++){ s=this.addDays(s,-cl); starts.unshift(s); }
+    s=anchor;
+    for(var j=0;j<4;j++){ s=this.addDays(s,cl); starts.push(s); }
+    return starts;
+  },
+  classifyDay(date){
+    var c=this.state.cycle;
+    var cl=c.cycleLength||28, pl=c.periodLength||5, ll=c.lutealLength||14;
+    var starts=this.periodStarts();
+    var cur=null;
+    for(var i=0;i<starts.length;i++){ if(this.diffDays(starts[i],date)>=0) cur=starts[i]; }
+    if(!cur) return {type:'other'};
+    var off=this.diffDays(cur,date);
+    var next=this.addDays(cur,cl);
+    var offNext=this.diffDays(date,next);
+    var ovu=this.addDays(cur,cl-ll);
+    var today=this.todayStr();
+    if(off>=0 && off<pl){
+      var isFuture=this.diffDays(today,date)>0;
+      if(c.periods[date]||!isFuture) return {type:'period', first:off===0, logged:!!c.periods[date]};
+      return {type:'predict'};
+    }
+    if(offNext>=0 && offNext<pl) return {type:'predict'};
+    if(date===ovu) return {type:'ovu'};
+    var offOvu=this.diffDays(ovu,date);
+    if(offOvu>=-5 && offOvu<=1) return {type:'fertile'};
+    return {type:'other'};
+  },
+  nextPeriodStart(){
+    var starts=this.periodStarts(); var today=this.todayStr();
+    for(var i=0;i<starts.length;i++){ if(this.diffDays(today,starts[i])>=0) return starts[i]; }
+    return starts[starts.length-1];
+  },
+  currentPeriodStart(){
+    var starts=this.periodStarts(); var today=this.todayStr();
+    var cur=null;
+    for(var i=0;i<starts.length;i++){ if(this.diffDays(starts[i],today)>=0) cur=starts[i]; }
+    return cur;
+  },
+
+  setCycleView(v){ this.cycleView=v; this.renderCycle(); },
+  cycleMonthPrev(){ var m=this.cycleMonth||this.todayStr().slice(0,7); var d=this.parseDate(m+'-01'); d.setDate(d.getDate()-1); this.cycleMonth=this.dateToStr(d).slice(0,7); this.renderCycle(); },
+  cycleMonthNext(){ var m=this.cycleMonth||this.todayStr().slice(0,7); var d=this.parseDate(m+'-01'); d.setMonth(d.getMonth()+1); this.cycleMonth=this.dateToStr(d).slice(0,7); this.renderCycle(); },
+
+  renderCycle(){
+    var self=this;
+    if(!this.cycleMonth) this.cycleMonth=this.todayStr().slice(0,7);
+    var c=this.state.cycle;
+    var today=this.todayStr();
+    var nxt=this.nextPeriodStart();
+    var daysUntil=this.diffDays(today,nxt);
+    var curStart=this.currentPeriodStart();
+    var cls=this.classifyDay(today);
+    var heroLabel, heroNum;
+    if(cls.type==='period'){
+      heroLabel='经期第'; heroNum=(this.diffDays(curStart,today)+1);
+    } else {
+      heroLabel='距预测经期'; heroNum=daysUntil;
+    }
+    var container=document.getElementById('cycle-container');
+    var viewToggle='<div class="flex gap-1 bg-slate-100 rounded-xl p-1 mb-4">'+
+      '<button onclick="app.setCycleView(\'calendar\')" class="cycle-tab flex-1 py-2 rounded-lg text-xs font-bold '+(this.cycleView==='calendar'?'active':'text-slate-500')+'">📅 日历视图</button>'+
+      '<button onclick="app.setCycleView(\'ring\')" class="cycle-tab flex-1 py-2 rounded-lg text-xs font-bold '+(this.cycleView==='ring'?'active':'text-slate-500')+'">🔵 周期视图</button></div>';
+
+    var hero='<div class="bg-gradient-to-br from-rose-500 to-pink-500 rounded-2xl p-5 mb-4 text-white shadow-lg relative overflow-hidden">'+
+      '<div class="absolute -right-4 -bottom-4 text-7xl opacity-10"><i class="fas fa-heart"></i></div>'+
+      '<div class="text-xs opacity-85 font-medium">'+heroLabel+'</div>'+
+      '<div class="text-4xl font-black tracking-tight leading-none mt-1">'+heroNum+' <span class="text-base font-bold">天</span></div>'+
+      '<div class="text-[11px] opacity-80 mt-2">周期共 '+(c.cycleLength||28)+' 天'+(curStart?' · 上次经期 '+this.fmtShort(curStart):'')+'</div>'+
+      '</div>';
+
+    var body = (this.cycleView==='calendar') ? this.renderCycleCalendar() : this.renderCycleRing();
+
+    var legend='<div class="cyc-legend text-[11px] text-slate-500 mt-3 mb-2">'+
+      '<span><i style="background:#e11d48"></i>经期</span>'+
+      '<span><i style="background:#fff;border:1.5px dashed #f43f5e"></i>预测经期</span>'+
+      '<span><i style="background:#dbeafe"></i>排卵期</span>'+
+      '<span><i style="background:#2563eb"></i>排卵日</span></div>';
+
+    var bbt=this.renderBbtCard();
+
+    var todayIsStart = !!c.periods[today];
+    var actions='<div class="mt-4 space-y-2">'+
+      '<button onclick="app.togglePeriodStart()" class="w-full py-3 rounded-xl font-bold text-sm '+(todayIsStart?'bg-rose-500 text-white':'bg-rose-50 text-rose-600')+' active:scale-95 transition">🩸 经期开始了吗？'+(todayIsStart?'（今天已记录 · 点此取消）':'')+'</button>'+
+      '<div class="grid grid-cols-3 gap-2">'+
+      '<button onclick="app.openRecordModal(\'sex\')" class="py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-600 active:scale-95 transition">❤️ 性行为</button>'+
+      '<button onclick="app.openRecordModal(\'symptoms\')" class="py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-600 active:scale-95 transition">🤒 身体症状</button>'+
+      '<button onclick="app.openRecordModal(\'mood\')" class="py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-600 active:scale-95 transition">😊 心情</button>'+
+      '</div>'+
+      '<button onclick="app.openRecordModal(\'more\')" class="w-full py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-600 active:scale-95 transition">📝 更多记录（体温等）</button>'+
+      '</div>';
+
+    container.innerHTML = viewToggle + hero + body + legend + bbt + actions;
+  },
+
+  renderCycleCalendar(){
+    var month=this.cycleMonth;
+    var y=parseInt(month.slice(0,4)), m=parseInt(month.slice(5,7))-1;
+    var first=new Date(y,m,1);
+    var startPad=first.getDay();
+    var daysInMonth=new Date(y,m+1,0).getDate();
+    var today=this.todayStr();
+    var cells='';
+    var dow=['日','一','二','三','四','五','六'];
+    var head='<div class="flex items-center justify-between mb-3"><button onclick="app.cycleMonthPrev()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><i class="fas fa-chevron-left text-xs"></i></button>'+
+      '<div class="text-sm font-black text-slate-700">'+(y-2000)+'年'+(m+1)+'月</div>'+
+      '<button onclick="app.cycleMonthNext()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><i class="fas fa-chevron-right text-xs"></i></button></div>';
+    var dowRow='<div class="grid grid-cols-7 gap-1 mb-1 text-center text-[10px] font-bold text-slate-300">'+dow.map(function(d){return '<div>'+d+'</div>';}).join('')+'</div>';
+    cells+='<div class="grid grid-cols-7 gap-1">';
+    for(var p=0;p<startPad;p++){ cells+='<div></div>'; }
+    for(var day=1;day<=daysInMonth;day++){
+      var ds=this.dateToStr(new Date(y,m,day));
+      var cl=this.classifyDay(ds);
+      var clsName='cyc-other';
+      if(cl.type==='period') clsName=cl.first?'cyc-period-first':'cyc-period';
+      else if(cl.type==='predict') clsName='cyc-predict';
+      else if(cl.type==='ovu') clsName='cyc-ovu';
+      else if(cl.type==='fertile') clsName='cyc-fertile';
+      var isToday=(ds===today)?' cyc-today':'';
+      var ind='';
+      var hasData=(this.state.cycle.sex[ds]||(this.state.cycle.symptoms[ds]&&this.state.cycle.symptoms[ds].length)||(this.state.cycle.mood[ds]&&this.state.cycle.mood[ds].length)||this.state.cycle.bbt[ds])?'<span class="absolute bottom-0.5 w-1 h-1 rounded-full '+(clsName.indexOf('period')>=0||clsName==='cyc-predict'?'bg-rose-400':'bg-slate-400')+'"></span>':'';
+      cells+='<div class="cyc-day '+clsName+isToday+'" onclick="app.openRecordModal(\'symptoms\',\''+ds+'\')">'+day+ind+'</div>';
+    }
+    cells+='</div>';
+    return '<div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">'+head+dowRow+cells+'</div>';
+  },
+
+  renderCycleRing(){
+    var c=this.state.cycle;
+    var cl=c.cycleLength||28, pl=c.periodLength||5, ll=c.lutealLength||14;
+    var r=52, cx=60, cy=60, C=2*Math.PI*r;
+    function arc(f0, fLen, color, w){
+      var len=fLen*C; var off=-f0*C;
+      return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="'+w+'" stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+'" stroke-dashoffset="'+off.toFixed(2)+'" transform="rotate(-90 '+cx+' '+cy+')"/>';
+    }
+    var ovuFrac=(cl-ll)/cl;
+    var ferF0=(cl-ll-5)/cl, ferLen=6/cl;
+    var today=this.todayStr();
+    var cur=this.currentPeriodStart();
+    var todayFrac=cur?this.diffDays(cur,today)/cl:0; if(todayFrac<0)todayFrac=0; if(todayFrac>1)todayFrac=1;
+    function pos(f){ var a=-Math.PI/2 + f*2*Math.PI; return {x:cx+r*Math.cos(a), y:cy+r*Math.sin(a)}; }
+    var ovP=pos(ovuFrac), tdP=pos(todayFrac);
+    var nxt=this.nextPeriodStart();
+    var range=cur? (this.fmtShort(cur)+' - '+this.fmtShort(this.addDays(nxt,-1))) : '';
+    var ring='<svg viewBox="0 0 120 120" class="w-full h-full">'+
+      arc(0,1,'#f1f5f9',11)+
+      arc(0,pl/cl,'#f43f5e',11)+
+      arc(ferF0,ferLen,'#60a5fa',11)+
+      '<circle cx="'+ovP.x.toFixed(1)+'" cy="'+ovP.y.toFixed(1)+'" r="5" fill="#2563eb"/>'+
+      '<circle cx="'+tdP.x.toFixed(1)+'" cy="'+tdP.y.toFixed(1)+'" r="5.5" fill="#0f172a" stroke="#fff" stroke-width="2"/>'+
+      '</svg>';
+    var center='<div class="absolute inset-0 flex flex-col items-center justify-center text-center">'+
+      '<div class="text-[11px] text-slate-400">'+range+'</div>'+
+      '<div class="text-3xl font-black text-rose-500 leading-none mt-1">'+this.diffDays(today,nxt)+'<span class="text-sm">天</span></div>'+
+      '<div class="text-[10px] text-slate-400 mt-1">距预测经期 · 周期共 '+cl+' 天</div></div>';
+    return '<div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col items-center">'+
+      '<div class="relative w-[210px] h-[210px]">'+ring+center+'</div>'+
+      '<div class="text-[11px] text-slate-400 mt-2">🔵 蓝点=排卵日 · ⚫ 黑点=今天</div></div>';
+  },
+
+  renderBbtCard(){
+    var bbt=this.state.cycle.bbt||{};
+    var keys=Object.keys(bbt);
+    if(keys.length===0) return '<div class="mt-3 bg-slate-50 rounded-2xl p-4 text-center text-xs text-slate-400">暂无基础体温记录（可在「更多记录」中录入）</div>';
+    var vals=keys.map(function(k){return bbt[k];});
+    var sum=vals.reduce(function(a,b){return a+b;},0);
+    var baseline=sum/vals.length;
+    var cur=this.currentPeriodStart(); var nxt=this.nextPeriodStart();
+    var cycVals=keys.filter(function(k){ return (!cur||this.diffDays(cur,k)>=0) && this.diffDays(k,nxt)>=0; }, this).map(function(k){return bbt[k];});
+    var avg = cycVals.length? (cycVals.reduce(function(a,b){return a+b;},0)/cycVals.length) : baseline;
+    var delta=avg-baseline;
+    var sign=delta>0?'+':'';
+    var latest=keys.slice().sort().pop();
+    return '<div class="mt-3 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-100">'+
+      '<div class="flex items-center justify-between"><span class="text-xs font-bold text-slate-500">🌡️ 平均手腕温度</span>'+
+      '<span class="text-xs font-bold text-amber-600">'+(delta>=0?'高于':'低于')+'基线 '+sign+delta.toFixed(2)+'℃</span></div>'+
+      '<div class="text-2xl font-black text-slate-700 mt-1">'+avg.toFixed(2)+' <span class="text-xs font-medium text-slate-400">℃</span></div>'+
+      '<div class="text-[10px] text-slate-400 mt-1">最近一次 '+latest+'：'+bbt[latest].toFixed(2)+'℃（共 '+keys.length+' 条）</div></div>';
+  },
+
+  togglePeriodStart(){
+    var today=this.todayStr(); var c=this.state.cycle;
+    if(c.periods[today]){ delete c.periods[today]; this.toast('已取消今日经期记录'); }
+    else { c.periods[today]={flow:2}; if(!c.lastPeriodStart) c.lastPeriodStart=today; this.toast('✅ 已记录今日为经期开始'); }
+    this.saveState(); this.renderCycle();
+  },
+
+  openRecordModal(tab, date){
+    this.recordTab=tab||'sex';
+    if(date) this.cycleRecordDate=date; else if(!this.cycleRecordDate) this.cycleRecordDate=this.todayStr();
+    var c=this.state.cycle; var d=this.cycleRecordDate;
+    this._cycSel={ sex: c.sex[d]||'none', symptoms: (c.symptoms[d]||[]).slice(), mood:(c.mood[d]||[]).slice() };
+    document.getElementById('cyc-record-date').value=d;
+    this.setRecordTab(this.recordTab);
+    document.getElementById('cycle-record-modal').classList.remove('hidden');
+  },
+  closeRecordModal(){ document.getElementById('cycle-record-modal').classList.add('hidden'); },
+  cycleRecordDateChange(){ this.cycleRecordDate=document.getElementById('cyc-record-date').value; var c=this.state.cycle; var d=this.cycleRecordDate; this._cycSel={ sex:c.sex[d]||'none', symptoms:(c.symptoms[d]||[]).slice(), mood:(c.mood[d]||[]).slice() }; this.renderRecordBody(); },
+  setRecordTab(tab){ this.recordTab=tab; ['sex','symptoms','mood','more'].forEach(function(t){ var b=document.getElementById('cyc-rtab-'+t); if(!b) return; if(t===tab){ b.className='flex-1 py-2 rounded-lg text-xs font-bold bg-rose-500 text-white'; } else { b.className='flex-1 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-500'; } }); this.renderRecordBody(); },
+  pickSex(k){ this._cycSel.sex=k; this.renderRecordBody(); },
+  toggleCycSym(k){ var a=this._cycSel.symptoms; var i=a.indexOf(k); if(i>=0)a.splice(i,1); else a.push(k); this.renderRecordBody(); },
+  toggleCycMood(k){ var a=this._cycSel.mood; var i=a.indexOf(k); if(i>=0)a.splice(i,1); else a.push(k); this.renderRecordBody(); },
+  renderRecordBody(){
+    var self=this; var tab=this.recordTab; var html='';
+    if(tab==='sex'){
+      html='<div class="grid grid-cols-3 gap-2">'+CYCLE_SEX.map(function(s){ var sel=self._cycSel.sex===s.k; return '<button onclick="app.pickSex(\''+s.k+'\')" class="cyc-chip '+(sel?'sel':'bg-white border-2 border-slate-200 text-slate-600')+' rounded-xl py-3 flex flex-col items-center gap-1"><span class="text-2xl">'+s.i+'</span><span class="text-xs font-bold">'+s.l+'</span></button>'; }).join('')+'</div>';
+    } else if(tab==='symptoms'){
+      html='<div class="space-y-4">';
+      Object.keys(CYCLE_SYMPTOMS).forEach(function(cat){
+        html+='<div><div class="text-xs font-bold text-slate-400 mb-2">'+cat+'</div><div class="flex flex-wrap gap-2">';
+        CYCLE_SYMPTOMS[cat].forEach(function(s){ var sel=self._cycSel.symptoms.indexOf(s.k)>=0; html+='<button onclick="app.toggleCycSym(\''+s.k+'\')" class="cyc-chip '+(sel?'sel':'bg-white border-2 border-slate-200 text-slate-600')+' rounded-xl px-3 py-2 flex items-center gap-1.5"><span>'+s.i+'</span><span class="text-xs font-bold">'+s.l+'</span></button>'; });
+        html+='</div></div>';
+      });
+      html+='</div>';
+    } else if(tab==='mood'){
+      html='<div class="flex flex-wrap gap-2">'+CYCLE_MOOD.map(function(s){ var sel=self._cycSel.mood.indexOf(s.k)>=0; return '<button onclick="app.toggleCycMood(\''+s.k+'\')" class="cyc-chip '+(sel?'sel':'bg-white border-2 border-slate-200 text-slate-600')+' rounded-xl px-3 py-2 flex items-center gap-1.5"><span class="text-xl">'+s.i+'</span><span class="text-xs font-bold">'+s.l+'</span></button>'; }).join('')+'</div>';
+    } else if(tab==='more'){
+      var c=self.state.cycle; var d=self.cycleRecordDate;
+      var note=(c.notes&&c.notes[d])?c.notes[d]:'';
+      html='<div class="space-y-3"><div><label class="text-xs font-bold text-slate-400">基础体温（℃）</label><input id="cyc-bbt" type="number" step="0.01" placeholder="如 36.50" value="'+(c.bbt[d]||'')+'" class="w-full mt-1 px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-rose-400 outline-none"></div>'+
+        '<div><label class="text-xs font-bold text-slate-400">备注</label><input id="cyc-note" type="text" placeholder="选填" value="'+note+'" class="w-full mt-1 px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-rose-400 outline-none"></div></div>';
+    }
+    document.getElementById('cyc-record-body').innerHTML=html;
+  },
+  saveCycleRecord(){
+    var date=this.cycleRecordDate; var c=this.state.cycle; var tab=this.recordTab;
+    if(tab==='sex'){ if(this._cycSel.sex && this._cycSel.sex!=='none') c.sex[date]=this._cycSel.sex; else delete c.sex[date]; }
+    else if(tab==='symptoms'){ if(this._cycSel.symptoms.length) c.symptoms[date]=this._cycSel.symptoms.slice(); else delete c.symptoms[date]; }
+    else if(tab==='mood'){ if(this._cycSel.mood.length) c.mood[date]=this._cycSel.mood.slice(); else delete c.mood[date]; }
+    else if(tab==='more'){ var v=parseFloat(document.getElementById('cyc-bbt').value); if(!isNaN(v)) c.bbt[date]=v; else delete c.bbt[date]; var nt=document.getElementById('cyc-note').value; if(!c.notes) c.notes={}; if(nt) c.notes[date]=nt; else delete c.notes[date]; }
+    this.saveState(); this.closeRecordModal(); this.renderCycle(); this.toast('✅ 已保存');
   },
 
   /* ===== SETTINGS ===== */

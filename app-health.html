@@ -1760,20 +1760,27 @@ const app = {
       heroLabel='距预测经期'; heroNum=daysUntil;
     }
     var container=document.getElementById('cycle-container');
-    var viewToggle='<div class="flex gap-1 bg-slate-100 rounded-xl p-1 mb-4">'+
+    var viewToggle='<div class="flex gap-1 bg-slate-100 rounded-xl p-1 mb-3">'+
       '<button onclick="app.setCycleView(\'calendar\')" class="cycle-tab flex-1 py-2 rounded-lg text-xs font-bold '+(this.cycleView==='calendar'?'active':'text-slate-500')+'">📅 日历视图</button>'+
       '<button onclick="app.setCycleView(\'ring\')" class="cycle-tab flex-1 py-2 rounded-lg text-xs font-bold '+(this.cycleView==='ring'?'active':'text-slate-500')+'">🔵 周期视图</button></div>';
 
-    var hero='<div class="bg-gradient-to-br from-rose-500 to-pink-500 rounded-2xl p-5 mb-4 text-white shadow-lg relative overflow-hidden">'+
-      '<div class="absolute -right-4 -bottom-4 text-7xl opacity-10"><i class="fas fa-heart"></i></div>'+
-      '<div class="text-xs opacity-85 font-medium">'+heroLabel+'</div>'+
-      '<div class="text-4xl font-black tracking-tight leading-none mt-1">'+heroNum+' <span class="text-base font-bold">天</span></div>'+
-      '<div class="text-[11px] opacity-80 mt-2">周期共 '+(c.cycleLength||28)+' 天'+(curStart?' · 上次经期 '+this.fmtShort(curStart):'')+'</div>'+
+    // 紧凑 Hero（移除绝对定位的心形图标，避免产生空白区；用纯渐变背景）
+    var hero='<div class="bg-gradient-to-br from-rose-500 to-pink-500 rounded-2xl px-4 py-3 mb-3 text-white shadow-lg">'+
+      '<div class="flex items-end justify-between gap-3">'+
+        '<div>'+
+          '<div class="text-[11px] opacity-90 font-medium leading-tight">'+heroLabel+'</div>'+
+          '<div class="text-3xl font-black tracking-tight leading-tight mt-0.5"><span class="inline-block">'+heroNum+'</span> <span class="text-sm font-bold align-middle">天</span></div>'+
+        '</div>'+
+        '<div class="text-right text-[10px] opacity-85 leading-tight pb-1">'+
+          '<div>周期共 '+(c.cycleLength||28)+' 天</div>'+
+          (curStart?'<div class="mt-0.5">上次经期 '+this.fmtShort(curStart)+'</div>':'')+
+        '</div>'+
+      '</div>'+
       '</div>';
 
     var body = (this.cycleView==='calendar') ? this.renderCycleCalendar() : this.renderCycleRing();
 
-    var legend='<div class="cyc-legend text-[11px] text-slate-500 mt-3 mb-2">'+
+    var legend='<div class="cyc-legend text-[10px] text-slate-500 mt-2 mb-1 leading-tight">'+
       '<span><i style="background:#e11d48"></i>经期</span>'+
       '<span><i style="background:#fff;border:1.5px dashed #f43f5e"></i>预测经期</span>'+
       '<span><i style="background:#dbeafe"></i>排卵期</span>'+
@@ -1817,7 +1824,7 @@ const app = {
       '</div>';
 
     // 单一卡片紧凑布局：日历/周期 + 图例 + 体温 + 日期栏 + 操作区（无多余空白）
-    var mainCard='<div class="bg-white rounded-2xl shadow-sm border border-slate-100 mt-3 overflow-hidden">'+
+    var mainCard='<div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">'+
       '<div class="p-4">'+body+legend+'</div>'+
       bbtInner+
       dateBar+

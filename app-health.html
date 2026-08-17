@@ -49,15 +49,14 @@
   .cyc-action-row { display:flex; align-items:center; gap:12px; padding:13px 16px; cursor:pointer; transition:background .1s; }
   .cyc-action-row:active { background:#f8fafc; }
   .cyc-action-row + .cyc-action-row { border-top:1px solid #f1f5f9; }
-  .cyc-action-row .ic { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+  .cyc-action-row .ic { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
   .cyc-action-row .ic.rose { background:#ffe4e6; color:#e11d48; }
   .cyc-action-row .ic.purple { background:#ede9fe; color:#7c3aed; }
   .cyc-action-row .ic.amber { background:#fef3c7; color:#d97706; }
-  .cyc-action-row .ic.slate { background:#f1f5f9; color:#64748b; }
+  .cyc-action-row .ic.slate { background:#e0f2fe; color:#0284c7; }
   .cyc-action-row .lbl { flex:1; font-size:14px; font-weight:500; color:#334155; }
-  .cyc-action-row .badge { font-size:10px; font-weight:700; padding:2px 6px; border-radius:6px; background:#ffe4e6; color:#e11d48; margin-left:6px; }
-  .cyc-action-row .ic-logged { color:#e11d48; font-size:20px; }
-  .cyc-action-row .ic-arrow { color:#cbd5e1; font-size:18px; }
+  .cyc-action-row .ic-logged { color:#e11d48; font-size:18px; line-height:1; }
+  .cyc-action-row .ic-arrow { color:#cbd5e1; font-size:18px; line-height:1; }
   .cyc-droplet { font-size:24px; transition: all .15s; }
   .cyc-bolt { font-size:20px; transition: all .15s; }
   .cyc-droplet.dim, .cyc-bolt.dim { opacity:0.18; filter:grayscale(1); }
@@ -259,6 +258,16 @@
   </div>
 </div>
 
+<div id="cycle-health-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onclick="if(event.target===this) app.closeCycleHealth()">
+  <div class="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl max-h-[80vh] flex flex-col">
+    <div class="flex items-center justify-between p-4 border-b border-slate-100">
+      <h3 class="text-base font-black text-slate-800">📊 经期健康数据</h3>
+      <button onclick="app.closeCycleHealth()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="cycle-health-body" class="p-4 overflow-y-auto"></div>
+  </div>
+</div>
+
 <script>
 const STORAGE_KEY = 'health_pro_state';
 
@@ -386,7 +395,7 @@ const app = {
   bindKeys(){
     document.addEventListener('keydown',function(e){
       if(e.key==='Escape'){
-        ['settings-modal','ex-modal','diet-modal','weight-modal','waist-modal','qp-modal','cycle-record-modal'].forEach(function(id){
+        ['settings-modal','ex-modal','diet-modal','weight-modal','waist-modal','qp-modal','cycle-record-modal','cycle-health-modal'].forEach(function(id){
           document.getElementById(id).classList.add('hidden');
         });
       }
@@ -1766,10 +1775,9 @@ const app = {
 
     function row(icCls, icon, label, tab, has, logIcon){
       var right = has ? '<span class="ic-logged">'+logIcon+'</span>' : '<span class="ic-arrow">›</span>';
-      var badge = has ? '<span class="badge">有记录</span>' : '';
       return '<div class="cyc-action-row" onclick="app.openRecordModal(\''+tab+'\',\''+actDate+'\')">'+
         '<span class="ic '+icCls+'">'+icon+'</span>'+
-        '<span class="lbl">'+label+badge+'</span>'+right+'</div>';
+        '<span class="lbl">'+label+'</span>'+right+'</div>';
     }
 
     var dateBar='<div class="cyc-datebar">'+
@@ -1792,9 +1800,13 @@ const app = {
       '</div>'+
       subItems+
       row('rose','❤️','性行为','sex',rec.sex,'💕')+
-      row('purple','🤒','身体症状','symptoms',rec.symptoms,'➕')+
+      row('rose','🤒','身体症状','symptoms',rec.symptoms,'➕')+
       row('amber','😊','心情','mood',rec.mood,'😄')+
-      row('slate','📝','更多记录','more',rec.more,'🌡️')+
+      row('slate','📋','更多记录','more',rec.more,'🌡️')+
+      '<div class="cyc-action-row" onclick="app.openCycleHealth()">'+
+        '<span class="ic slate">📊</span>'+
+        '<span class="lbl">查看生理周期期间的健康数据</span>'+
+        '<span class="ic-arrow">›</span></div>'+
       '</div>';
 
     container.innerHTML = viewToggle + hero + mainCard;
@@ -1915,6 +1927,44 @@ const app = {
     document.getElementById('cycle-record-modal').classList.remove('hidden');
   },
   closeRecordModal(){ document.getElementById('cycle-record-modal').classList.add('hidden'); },
+  openCycleHealth(){
+    var self=this;
+    var c=this.state.cycle;
+    var starts=this.periodStarts();
+    if(!starts.length){ document.getElementById('cycle-health-body').innerHTML='<div class="text-center text-sm text-slate-400 py-10">还没有经期记录，无法汇总数据</div>'; document.getElementById('cycle-health-modal').classList.remove('hidden'); return; }
+    var rows=[];
+    starts.forEach(function(s){
+      var e=self.addDays(s, (c.periodLength||5)-1);
+      var days=self.diffDays(s,e)+1;
+      var water=0, waterDays=0, dietCal=0, dietDays=0, exMin=0, exCal=0, exDays=0, weightSum=0, weightN=0;
+      for(var d=new Date(s); self.diffDays(self.dateToStr(d),e)<=0; d.setDate(d.getDate()+1)){
+        var ds=self.dateToStr(d);
+        if(self.state.water[ds]){ water+=self.state.water[ds].length; waterDays++; }
+        if(self.state.diet[ds]&&self.state.diet[ds].length){ var cals=self.state.diet[ds].reduce(function(a,i){return a+(i.cal||0);},0); dietCal+=cals; dietDays++; }
+        if(self.state.exercise[ds]&&self.state.exercise[ds].length){ self.state.exercise[ds].forEach(function(x){ exMin+=(x.duration||0); exCal+=(x.cal||0); }); exDays++; }
+        if(self.state.weight[ds]){ weightSum+=self.state.weight[ds]; weightN++; }
+      }
+      rows.push({s:s,e:e,days:days,water:water,waterDays:waterDays,dietCal:dietCal,dietDays:dietDays,exMin:exMin,exCal:exCal,exDays:exDays,weight:weightN?weightSum/weightN:null});
+    });
+    var rowsHtml=rows.map(function(r){
+      var avgW=r.waterDays? (r.water/r.waterDays).toFixed(1):'—';
+      var avgD=r.dietDays? Math.round(r.dietCal/r.dietDays):'—';
+      var avgE=r.exDays? Math.round(r.exMin/r.exDays):'—';
+      return '<div class="bg-slate-50 rounded-xl p-3 mb-2">'+
+        '<div class="flex items-center justify-between mb-2"><span class="text-xs font-bold text-rose-500">'+self.fmtShort(r.s)+' ~ '+self.fmtShort(r.e)+'</span><span class="text-[10px] text-slate-400">'+r.days+' 天</span></div>'+
+        '<div class="grid grid-cols-2 gap-2 text-[11px]">'+
+          '<div class="flex justify-between"><span class="text-slate-400">💧 日均喝水</span><span class="font-bold text-slate-700">'+avgW+' 杯</span></div>'+
+          '<div class="flex justify-between"><span class="text-slate-400">🍱 日均摄入</span><span class="font-bold text-slate-700">'+(avgD==='—'?'—':avgD)+' kcal</span></div>'+
+          '<div class="flex justify-between"><span class="text-slate-400">🏃 日均运动</span><span class="font-bold text-slate-700">'+(avgE==='—'?'—':avgE)+' 分钟</span></div>'+
+          '<div class="flex justify-between"><span class="text-slate-400">⚖️ 平均体重</span><span class="font-bold text-slate-700">'+(r.weight?r.weight.toFixed(1):'—')+' kg</span></div>'+
+        '</div></div>';
+    }).join('');
+    var last=rows[rows.length-1];
+    var html='<p class="text-[11px] text-slate-400 mb-3">每次经期期间的健康数据汇总（最近 '+(rows.length<=5?rows.length:5)+' 次）</p>'+rowsHtml;
+    document.getElementById('cycle-health-body').innerHTML=html;
+    document.getElementById('cycle-health-modal').classList.remove('hidden');
+  },
+  closeCycleHealth(){ document.getElementById('cycle-health-modal').classList.add('hidden'); },
   cycleRecordDateChange(){ this.cycleRecordDate=document.getElementById('cyc-record-date').value; var c=this.state.cycle; var d=this.cycleRecordDate; this._cycSel={ sex:c.sex[d]||'none', symptoms:(c.symptoms[d]||[]).slice(), mood:(c.mood[d]||[]).slice() }; this.renderRecordBody(); },
   setRecordTab(tab){ this.recordTab=tab; ['sex','symptoms','mood','more'].forEach(function(t){ var b=document.getElementById('cyc-rtab-'+t); if(!b) return; if(t===tab){ b.className='flex-1 py-2 rounded-lg text-xs font-bold bg-rose-500 text-white'; } else { b.className='flex-1 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-500'; } }); this.renderRecordBody(); },
   pickSex(k){ this._cycSel.sex=k; this.renderRecordBody(); },

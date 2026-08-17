@@ -38,6 +38,8 @@
   .cyc-ovu { background:#2563eb; color:#fff; font-weight:800; }
   .cyc-other { background:#f8fafc; color:#94a3b8; }
   .cyc-today { outline: 2px solid #0f172a; outline-offset: -2px; }
+  .cyc-rec-dot { position:absolute; bottom:5px; left:50%; transform:translateX(-50%); width:6px; height:6px; border-radius:50%; background:#e11d48; box-shadow:0 0 0 2px rgba(225,29,72,.18); }
+  .cyc-day.cyc-active { outline:2px solid #e11d48; outline-offset:-2px; }
   .cyc-chip { transition: all .15s; }
   .cyc-chip.sel { background:#e11d48; color:#fff; border-color:#e11d48; }
   .cyc-legend { display:flex; flex-wrap:wrap; gap:10px; }
@@ -1382,6 +1384,7 @@ const app = {
 
   /* ===== CYCLE DATE HELPERS ===== */
   cycleActToday(){ this.cycleActiveDate=this.todayStr(); this.renderCycle(); },
+  cycleDayClick(ds){ this.cycleActiveDate=ds; this.renderCycle(); },
   cycleActPrev(){ var d=this.cycleActiveDate||this.todayStr(); this.cycleActiveDate=this.dateToStr(this.addDays(d,-1)); this.renderCycle(); },
   cycleActNext(){ var d=this.cycleActiveDate||this.todayStr(); this.cycleActiveDate=this.dateToStr(this.addDays(d,1)); this.renderCycle(); },
   cycleActDateChange(){ var el=document.getElementById('cycActiveDateInput'); if(el&&el.value){ this.cycleActiveDate=el.value; this.renderCycle(); } },
@@ -1886,9 +1889,11 @@ const app = {
       else if(cl.type==='ovu') clsName='cyc-ovu';
       else if(cl.type==='fertile') clsName='cyc-fertile';
       var isToday=(ds===today)?' cyc-today':'';
-      var ind='';
-      var hasData=(this.state.cycle.sex[ds]||(this.state.cycle.symptoms[ds]&&this.state.cycle.symptoms[ds].length)||(this.state.cycle.mood[ds]&&this.state.cycle.mood[ds].length)||this.state.cycle.bbt[ds])?'<span class="absolute bottom-0.5 w-1 h-1 rounded-full '+(clsName.indexOf('period')>=0||clsName==='cyc-predict'?'bg-rose-400':'bg-slate-400')+'"></span>':'';
-      cells+='<div class="cyc-day '+clsName+isToday+'" onclick="app.openRecordModal(\'symptoms\',\''+ds+'\')">'+day+ind+'</div>';
+      var isActive=(ds===(this.cycleActiveDate||this.todayStr()))?' cyc-active':'';
+      var otherLog = this.state.cycle.sex[ds] || (this.state.cycle.symptoms[ds]&&this.state.cycle.symptoms[ds].length) || (this.state.cycle.mood[ds]&&this.state.cycle.mood[ds].length) || this.state.cycle.bbt[ds] || (this.state.cycle.notes&&this.state.cycle.notes[ds]);
+      var isPeriod = (clsName.indexOf('period')>=0);
+      var ind = (otherLog && !isPeriod) ? '<span class="cyc-rec-dot"></span>' : '';
+      cells+='<div class="cyc-day '+clsName+isToday+isActive+'" onclick="app.cycleDayClick(\''+ds+'\')">'+day+ind+'</div>';
     }
     cells+='</div>';
     return '<div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">'+head+dowRow+cells+'</div>';

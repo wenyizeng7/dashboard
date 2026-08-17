@@ -42,6 +42,31 @@
   .cyc-chip.sel { background:#e11d48; color:#fff; border-color:#e11d48; }
   .cyc-legend { display:flex; flex-wrap:wrap; gap:10px; }
   .cyc-legend i { width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:middle; }
+  .cyc-toggle { width:44px; height:24px; border-radius:12px; background:#e2e8f0; position:relative; transition:background .2s; flex-shrink:0; }
+  .cyc-toggle.on { background:#f43f5e; }
+  .cyc-toggle .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.2); transition:left .2s; }
+  .cyc-toggle.on .knob { left:22px; }
+  .cyc-action-row { display:flex; align-items:center; gap:12px; padding:13px 16px; cursor:pointer; transition:background .1s; }
+  .cyc-action-row:active { background:#f8fafc; }
+  .cyc-action-row + .cyc-action-row { border-top:1px solid #f1f5f9; }
+  .cyc-action-row .ic { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+  .cyc-action-row .ic.rose { background:#ffe4e6; color:#e11d48; }
+  .cyc-action-row .ic.purple { background:#ede9fe; color:#7c3aed; }
+  .cyc-action-row .ic.amber { background:#fef3c7; color:#d97706; }
+  .cyc-action-row .ic.slate { background:#f1f5f9; color:#64748b; }
+  .cyc-action-row .lbl { flex:1; font-size:14px; font-weight:500; color:#334155; }
+  .cyc-action-row .badge { font-size:10px; font-weight:700; padding:2px 6px; border-radius:6px; background:#ffe4e6; color:#e11d48; margin-left:6px; }
+  .cyc-action-row .ic-logged { color:#e11d48; font-size:20px; }
+  .cyc-action-row .ic-arrow { color:#cbd5e1; font-size:18px; }
+  .cyc-droplet { font-size:24px; transition: all .15s; }
+  .cyc-bolt { font-size:20px; transition: all .15s; }
+  .cyc-droplet.dim, .cyc-bolt.dim { opacity:0.18; filter:grayscale(1); }
+  .cyc-datebar { display:flex; align-items:center; gap:8px; padding:8px 14px; background:#f8fafc; border-bottom:1px solid #f1f5f9; }
+  .cyc-datebar .label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; }
+  .cyc-datebar .nav-btn { width:26px; height:26px; border-radius:50%; background:#fff; color:#94a3b8; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,.05); }
+  .cyc-datebar .date { font-size:13px; font-weight:700; color:#334155; min-width:90px; text-align:center; }
+  .cyc-datebar .today-btn { font-size:10px; font-weight:700; padding:3px 8px; border-radius:10px; background:#ffe4e6; color:#e11d48; }
+  .cyc-datebar .today-btn.active { background:#e11d48; color:#fff; }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen pb-20">
@@ -294,7 +319,7 @@ const CYCLE_MOOD = [
 const app = {
   state:null, currentTab:'water', selectedExType:'跑步', currentMeal:'breakfast',
   waterRange:'month', exRange:'month',
-  waterActiveDate:null, dietActiveDate:null, exerciseActiveDate:null,
+  waterActiveDate:null, dietActiveDate:null, exerciseActiveDate:null, cycleActiveDate:null, exerciseActiveDate:null,
   weightRange:'year', weightDateFrom:'', weightDateTo:'',
   waistRange:'year', waistDateFrom:'', waistDateTo:'',
   dietStatRange:'month', dietCalRange:'month', dietCalDateFrom:'',
@@ -1340,6 +1365,21 @@ const app = {
     this.renderExercise();
   },
 
+  /* ===== CYCLE DATE HELPERS ===== */
+  cycleActToday(){ this.cycleActiveDate=this.todayStr(); this.renderCycle(); },
+  cycleActPrev(){ var d=this.cycleActiveDate||this.todayStr(); this.cycleActiveDate=this.dateToStr(this.addDays(d,-1)); this.renderCycle(); },
+  cycleActNext(){ var d=this.cycleActiveDate||this.todayStr(); this.cycleActiveDate=this.dateToStr(this.addDays(d,1)); this.renderCycle(); },
+  cycleActDateChange(){ var el=document.getElementById('cycActiveDateInput'); if(el&&el.value){ this.cycleActiveDate=el.value; this.renderCycle(); } },
+  cycleRecSummary(d){
+    var c=this.state.cycle;
+    return {
+      sex: !!(c.sex[d] && c.sex[d]!=='none'),
+      symptoms: !!(c.symptoms[d] && c.symptoms[d].length),
+      mood: !!(c.mood[d] && c.mood[d].length),
+      more: !!(c.bbt[d] || (c.notes && c.notes[d]))
+    };
+  },
+
   renderExercise(){
     var self=this;
     var today=this.todayStr();
@@ -1702,20 +1742,62 @@ const app = {
       '<span><i style="background:#dbeafe"></i>排卵期</span>'+
       '<span><i style="background:#2563eb"></i>排卵日</span></div>';
 
-    var bbt=this.renderBbtCard();
+    var bbtInner=this.renderBbtCard();
 
-    var todayIsStart = !!c.periods[today];
-    var actions='<div class="mt-4 space-y-2">'+
-      '<button onclick="app.togglePeriodStart()" class="w-full py-3 rounded-xl font-bold text-sm '+(todayIsStart?'bg-rose-500 text-white':'bg-rose-50 text-rose-600')+' active:scale-95 transition">🩸 经期开始了吗？'+(todayIsStart?'（今天已记录 · 点此取消）':'')+'</button>'+
-      '<div class="grid grid-cols-3 gap-2">'+
-      '<button onclick="app.openRecordModal(\'sex\')" class="py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-600 active:scale-95 transition">❤️ 性行为</button>'+
-      '<button onclick="app.openRecordModal(\'symptoms\')" class="py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-600 active:scale-95 transition">🤒 身体症状</button>'+
-      '<button onclick="app.openRecordModal(\'mood\')" class="py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-600 active:scale-95 transition">😊 心情</button>'+
-      '</div>'+
-      '<button onclick="app.openRecordModal(\'more\')" class="w-full py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-600 active:scale-95 transition">📝 更多记录（体温等）</button>'+
+    // 底部操作区使用的「记录日期」(默认今天，可任意切换)
+    var actDate = this.cycleActiveDate || today;
+    var actToday = (actDate===today);
+    var rec = this.cycleRecSummary(actDate);
+
+    // 经期记录（含流量/痛经强度）
+    var pr = c.periods[actDate] || null;
+    var periodOn = !!pr;
+    var flowLv = pr ? (pr.flow||2) : 0;
+    var crampLv = pr ? (pr.cramp||0) : 0;
+    var flowHtml='';
+    for(var fi=1; fi<=3; fi++){ flowHtml += '<button onclick="app.setPeriodFlow('+fi+')" class="cyc-droplet '+(fi<=flowLv?'':'dim')+'">💧</button>'; }
+    var crampHtml='';
+    for(var ci=1; ci<=3; ci++){ crampHtml += '<button onclick="app.setPeriodCramp('+ci+')" class="cyc-bolt '+(ci<=crampLv?'':'dim')+'">⚡</button>'; }
+    var subItems = periodOn ?
+      '<div class="px-4 py-3 bg-rose-50/50 border-t border-rose-100 space-y-3">'+
+        '<div class="flex items-center justify-between"><span class="text-sm font-medium text-slate-600">🩸 流量</span><div class="flex gap-2">'+flowHtml+'</div></div>'+
+        '<div class="flex items-center justify-between"><span class="text-sm font-medium text-slate-600">⚡ 痛经</span><div class="flex gap-2">'+crampHtml+'</div></div>'+
+      '</div>' : '';
+
+    function row(icCls, icon, label, tab, has, logIcon){
+      var right = has ? '<span class="ic-logged">'+logIcon+'</span>' : '<span class="ic-arrow">›</span>';
+      var badge = has ? '<span class="badge">有记录</span>' : '';
+      return '<div class="cyc-action-row" onclick="app.openRecordModal(\''+tab+'\',\''+actDate+'\')">'+
+        '<span class="ic '+icCls+'">'+icon+'</span>'+
+        '<span class="lbl">'+label+badge+'</span>'+right+'</div>';
+    }
+
+    var dateBar='<div class="cyc-datebar">'+
+      '<span class="label">记录日期</span>'+
+      '<button class="nav-btn" onclick="app.cycleActPrev()"><i class="fas fa-chevron-left text-xs"></i></button>'+
+      '<span class="date">'+this.fmtShort(actDate)+'</span>'+
+      '<button class="nav-btn" onclick="app.cycleActNext()"><i class="fas fa-chevron-right text-xs"></i></button>'+
+      '<button class="today-btn '+(actToday?'active':'')+'" onclick="app.cycleActToday()">今天</button>'+
       '</div>';
 
-    container.innerHTML = viewToggle + hero + body + legend + bbt + actions;
+    // 单一卡片紧凑布局：日历/周期 + 图例 + 体温 + 日期栏 + 操作区（无多余空白）
+    var mainCard='<div class="bg-white rounded-2xl shadow-sm border border-slate-100 mt-3 overflow-hidden">'+
+      '<div class="p-4">'+body+legend+'</div>'+
+      bbtInner+
+      dateBar+
+      '<div class="cyc-action-row" onclick="app.togglePeriodStart()">'+
+        '<span class="ic rose">🩸</span>'+
+        '<span class="lbl">经期开始了吗？</span>'+
+        '<span class="cyc-toggle '+(periodOn?'on':'')+'"><span class="knob"></span></span>'+
+      '</div>'+
+      subItems+
+      row('rose','❤️','性行为','sex',rec.sex,'💕')+
+      row('purple','🤒','身体症状','symptoms',rec.symptoms,'➕')+
+      row('amber','😊','心情','mood',rec.mood,'😄')+
+      row('slate','📝','更多记录','more',rec.more,'🌡️')+
+      '</div>';
+
+    container.innerHTML = viewToggle + hero + mainCard;
   },
 
   renderCycleCalendar(){
@@ -1786,7 +1868,7 @@ const app = {
   renderBbtCard(){
     var bbt=this.state.cycle.bbt||{};
     var keys=Object.keys(bbt);
-    if(keys.length===0) return '<div class="mt-3 bg-slate-50 rounded-2xl p-4 text-center text-xs text-slate-400">暂无基础体温记录（可在「更多记录」中录入）</div>';
+    if(keys.length===0) return '';
     var vals=keys.map(function(k){return bbt[k];});
     var sum=vals.reduce(function(a,b){return a+b;},0);
     var baseline=sum/vals.length;
@@ -1796,7 +1878,7 @@ const app = {
     var delta=avg-baseline;
     var sign=delta>0?'+':'';
     var latest=keys.slice().sort().pop();
-    return '<div class="mt-3 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-100">'+
+    return '<div class="px-4 py-3 border-t border-slate-100 bg-gradient-to-br from-amber-50 to-orange-50">'+
       '<div class="flex items-center justify-between"><span class="text-xs font-bold text-slate-500">🌡️ 平均手腕温度</span>'+
       '<span class="text-xs font-bold text-amber-600">'+(delta>=0?'高于':'低于')+'基线 '+sign+delta.toFixed(2)+'℃</span></div>'+
       '<div class="text-2xl font-black text-slate-700 mt-1">'+avg.toFixed(2)+' <span class="text-xs font-medium text-slate-400">℃</span></div>'+
@@ -1804,10 +1886,23 @@ const app = {
   },
 
   togglePeriodStart(){
-    var today=this.todayStr(); var c=this.state.cycle;
-    if(c.periods[today]){ delete c.periods[today]; this.toast('已取消今日经期记录'); }
-    else { c.periods[today]={flow:2}; if(!c.lastPeriodStart) c.lastPeriodStart=today; this.toast('✅ 已记录今日为经期开始'); }
+    var actDate = this.cycleActiveDate || this.todayStr();
+    var c=this.state.cycle;
+    if(c.periods[actDate]){ delete c.periods[actDate]; this.toast('已取消该日经期记录'); }
+    else { c.periods[actDate]={flow:2, cramp:0}; if(!c.lastPeriodStart) c.lastPeriodStart=actDate; this.toast('✅ 已记录为经期开始'); }
     this.saveState(); this.renderCycle();
+  },
+  setPeriodFlow(lv){
+    var actDate = this.cycleActiveDate || this.todayStr();
+    var c=this.state.cycle;
+    if(!c.periods[actDate]) c.periods[actDate]={flow:2, cramp:0};
+    c.periods[actDate].flow=lv; this.saveState(); this.renderCycle();
+  },
+  setPeriodCramp(lv){
+    var actDate = this.cycleActiveDate || this.todayStr();
+    var c=this.state.cycle;
+    if(!c.periods[actDate]) c.periods[actDate]={flow:2, cramp:0};
+    c.periods[actDate].cramp=lv; this.saveState(); this.renderCycle();
   },
 
   openRecordModal(tab, date){

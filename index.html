@@ -335,7 +335,7 @@
 
     <!-- ===== HEALTH VIEW ===== -->
     <section id="view-health" class="app-view">
-      <div class="frame-wrap"><iframe id="frame-health" src="app-health.html?v=14" allow="geolocation"></iframe></div>
+      <div class="frame-wrap"><iframe id="frame-health" src="app-health.html?v=15" allow="geolocation"></iframe></div>
     </section>
 
     <!-- ===== TRASH VIEW ===== -->
@@ -1000,7 +1000,7 @@ function renderDashboard(){
 }
 
 /* ============ INIT ============ */
-const DASH_VERSION = 'v74-cycle-polish';
+const DASH_VERSION = 'v75-cycle-monthpicker';
 
 // Debounced dashboard refresh — triggered by iframe postMessage or storage events
 let _dashRefreshTimer = null;
@@ -1164,6 +1164,27 @@ window.addEventListener('load', () => {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       location.reload();
     });
+    // Periodic check: if network has a newer sw.js than our localStorage, force full reload
+    const checkForUpdate = () => {
+      fetch('sw.js?_=' + Date.now(), {cache:'no-store'}).then(r => r.text()).then(t => {
+        const m = t.match(/CACHE\s*=\s*['"]([^'"]+)['"]/);
+        if(m){
+          const netCache = m[1];
+          const localCache = localStorage.getItem('_dash_sw');
+          if(localCache && localCache !== netCache){
+            localStorage.setItem('_dash_sw', netCache);
+            caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))));
+            navigator.serviceWorker.getRegistrations().then(regs => Promise.all(regs.map(r => r.unregister()))).then(() => {
+              location.reload(true);
+            });
+          } else if(!localCache){
+            localStorage.setItem('_dash_sw', netCache);
+          }
+        }
+      }).catch(()=>{});
+    };
+    checkForUpdate();
+    setInterval(checkForUpdate, 60000);
   }
   renderDashboard();
   // Initialize snapshot

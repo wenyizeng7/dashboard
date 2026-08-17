@@ -46,9 +46,11 @@
   .cyc-toggle.on { background:#f43f5e; }
   .cyc-toggle .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.2); transition:left .2s; }
   .cyc-toggle.on .knob { left:22px; }
-  .cyc-action-row { display:flex; align-items:center; gap:12px; padding:13px 16px; cursor:pointer; transition:background .1s; }
+  .cyc-action-row { display:flex; align-items:center; gap:12px; padding:13px 16px; cursor:pointer; transition:background .1s; position:relative; }
   .cyc-action-row:active { background:#f8fafc; }
   .cyc-action-row + .cyc-action-row { border-top:1px solid #f1f5f9; }
+  .cyc-action-row.has-log { background: linear-gradient(90deg, #fff1f2 0%, #ffffff 40%); }
+  .cyc-action-row.has-log::before { content:''; position:absolute; left:0; top:8px; bottom:8px; width:3px; background:#f43f5e; border-radius:0 2px 2px 0; }
   .cyc-action-row .ic { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
   .cyc-action-row .ic.rose { background:#ffe4e6; color:#e11d48; }
   .cyc-action-row .ic.purple { background:#ede9fe; color:#7c3aed; }
@@ -1715,6 +1717,32 @@ const app = {
   setCycleView(v){ this.cycleView=v; this.renderCycle(); },
   cycleMonthPrev(){ var m=this.cycleMonth||this.todayStr().slice(0,7); var d=this.parseDate(m+'-01'); d.setDate(d.getDate()-1); this.cycleMonth=this.dateToStr(d).slice(0,7); this.renderCycle(); },
   cycleMonthNext(){ var m=this.cycleMonth||this.todayStr().slice(0,7); var d=this.parseDate(m+'-01'); d.setMonth(d.getMonth()+1); this.cycleMonth=this.dateToStr(d).slice(0,7); this.renderCycle(); },
+  toggleMonthPicker(){
+    var el=document.getElementById('month-picker');
+    if(!el) return;
+    if(el.classList.contains('hidden')){
+      el.classList.remove('hidden');
+      this.populateMonthPicker();
+    } else {
+      el.classList.add('hidden');
+    }
+  },
+  populateMonthPicker(){
+    var m=this.cycleMonth||this.todayStr().slice(0,7);
+    var y=parseInt(m.slice(0,4));
+    var cur=parseInt(m.slice(5,7));
+    document.getElementById('mp-year').innerText=y+'年';
+    var html='';
+    for(var i=1;i<=12;i++){
+      var isCur=(i===cur);
+      html+='<button onclick="app.cycleMonthGo('+y+','+i+')" class="'+(isCur?'bg-rose-500 text-white':'bg-slate-50 text-slate-600')+' rounded-lg py-2 text-xs font-bold">'+i+'月</button>';
+    }
+    document.getElementById('mp-grid').innerHTML=html;
+  },
+  cycleMonthGo(y,m){ this.cycleMonth=String(y).padStart(4,'0')+'-'+String(m).padStart(2,'0'); this.renderCycle(); },
+  cycleMonthGoToday(){ this.cycleMonth=this.todayStr().slice(0,7); this.renderCycle(); },
+  cycleMonthPrevYear(){ var m=this.cycleMonth||this.todayStr().slice(0,7); this.cycleMonth=(parseInt(m.slice(0,4))-1)+m.slice(4); this.renderCycle(); },
+  cycleMonthNextYear(){ var m=this.cycleMonth||this.todayStr().slice(0,7); this.cycleMonth=(parseInt(m.slice(0,4))+1)+m.slice(4); this.renderCycle(); },
 
   renderCycle(){
     var self=this;
@@ -1775,7 +1803,7 @@ const app = {
 
     function row(icCls, icon, label, tab, has, logIcon){
       var right = has ? '<span class="ic-logged">'+logIcon+'</span>' : '<span class="ic-arrow">›</span>';
-      return '<div class="cyc-action-row" onclick="app.openRecordModal(\''+tab+'\',\''+actDate+'\')">'+
+      return '<div class="cyc-action-row '+(has?'has-log':'')+'" onclick="app.openRecordModal(\''+tab+'\',\''+actDate+'\')">'+
         '<span class="ic '+icCls+'">'+icon+'</span>'+
         '<span class="lbl">'+label+'</span>'+right+'</div>';
     }
@@ -1821,9 +1849,22 @@ const app = {
     var today=this.todayStr();
     var cells='';
     var dow=['日','一','二','三','四','五','六'];
-    var head='<div class="flex items-center justify-between mb-3"><button onclick="app.cycleMonthPrev()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><i class="fas fa-chevron-left text-xs"></i></button>'+
-      '<div class="text-sm font-black text-slate-700">'+(y-2000)+'年'+(m+1)+'月</div>'+
-      '<button onclick="app.cycleMonthNext()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><i class="fas fa-chevron-right text-xs"></i></button></div>';
+    var head='<div class="flex items-center justify-between mb-3 relative">'+
+      '<button onclick="app.cycleMonthPrev()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><i class="fas fa-chevron-left text-xs"></i></button>'+
+      '<button onclick="app.toggleMonthPicker()" class="flex-1 mx-2 py-1.5 rounded-lg active:bg-slate-100 transition flex items-center justify-center gap-1.5 text-sm font-black text-slate-700">'+
+        '<span>'+(y-2000)+'年'+(m+1)+'月</span>'+
+        '<i class="fas fa-chevron-down text-[10px] text-slate-400"></i>'+
+      '</button>'+
+      '<button onclick="app.cycleMonthNext()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><i class="fas fa-chevron-right text-xs"></i></button>'+
+      '<div id="month-picker" class="hidden absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-200 p-3 z-30">'+
+        '<div class="flex items-center justify-between mb-2"><button onclick="app.cycleMonthPrevYear()" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 text-xs"><i class="fas fa-chevron-left"></i></button>'+
+        '<span id="mp-year" class="text-sm font-black text-slate-700">'+y+'年</span>'+
+        '<button onclick="app.cycleMonthNextYear()" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 text-xs"><i class="fas fa-chevron-right"></i></button></div>'+
+        '<div class="grid grid-cols-4 gap-2" id="mp-grid"></div>'+
+        '<div class="mt-2 flex justify-between items-center"><button onclick="app.cycleMonthGoToday()" class="text-[11px] font-bold text-rose-500 px-2 py-1">回到本月</button>'+
+        '<span class="text-[10px] text-slate-400">点击月份直接跳转</span></div>'+
+      '</div>'+
+      '</div>';
     var dowRow='<div class="grid grid-cols-7 gap-1 mb-1 text-center text-[10px] font-bold text-slate-300">'+dow.map(function(d){return '<div>'+d+'</div>';}).join('')+'</div>';
     cells+='<div class="grid grid-cols-7 gap-1">';
     for(var p=0;p<startPad;p++){ cells+='<div></div>'; }

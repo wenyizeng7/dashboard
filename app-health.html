@@ -51,7 +51,7 @@
   .cyc-action-row + .cyc-action-row { border-top:1px solid #f1f5f9; }
   .cyc-action-row.has-log { background: linear-gradient(90deg, #fff1f2 0%, #ffffff 40%); }
   .cyc-action-row.has-log::before { content:''; position:absolute; left:0; top:8px; bottom:8px; width:3px; background:#f43f5e; border-radius:0 2px 2px 0; }
-  .cyc-action-row .ic { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+  .cyc-action-row .ic { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; position:relative; }
   .cyc-action-row .ic.rose { background:#ffe4e6; color:#e11d48; }
   .cyc-action-row .ic.purple { background:#ede9fe; color:#7c3aed; }
   .cyc-action-row .ic.amber { background:#fef3c7; color:#d97706; }
@@ -59,6 +59,9 @@
   .cyc-action-row .lbl { flex:1; font-size:14px; font-weight:500; color:#334155; }
   .cyc-action-row .ic-logged { color:#e11d48; font-size:18px; line-height:1; }
   .cyc-action-row .ic-arrow { color:#cbd5e1; font-size:18px; line-height:1; }
+  .cyc-log-pill { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; background:#fff1f2; border:1px solid #fecdd3; border-radius:999px; color:#e11d48; font-size:10px; font-weight:700; line-height:1.4; }
+  .cyc-log-pill .dot { width:6px; height:6px; border-radius:50%; background:#e11d48; box-shadow:0 0 0 2px rgba(225,29,72,.18); }
+  .cyc-action-row .ic .dot-mark { position:absolute; top:-2px; right:-2px; width:10px; height:10px; background:#e11d48; border:2px solid #fff; border-radius:50%; box-shadow:0 0 0 2px rgba(225,29,72,.25); }
   .cyc-droplet { font-size:24px; transition: all .15s; }
   .cyc-bolt { font-size:20px; transition: all .15s; }
   .cyc-droplet.dim, .cyc-bolt.dim { opacity:0.18; filter:grayscale(1); }
@@ -1811,9 +1814,11 @@ const app = {
       '</div>' : '';
 
     function row(icCls, icon, label, tab, has, logIcon){
-      var right = has ? '<span class="ic-logged">'+logIcon+'</span>' : '<span class="ic-arrow">›</span>';
+      var right = has
+        ? '<span class="flex items-center gap-1"><span class="cyc-log-pill"><span class="dot"></span>已记录</span><span class="ic-logged">'+logIcon+'</span></span>'
+        : '<span class="ic-arrow">›</span>';
       return '<div class="cyc-action-row '+(has?'has-log':'')+'" onclick="app.openRecordModal(\''+tab+'\',\''+actDate+'\')">'+
-        '<span class="ic '+icCls+'">'+icon+'</span>'+
+        '<span class="ic '+icCls+'">'+(has?'<span class="dot-mark"></span>':'')+icon+'</span>'+
         '<span class="lbl">'+label+'</span>'+right+'</div>';
     }
 

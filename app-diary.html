@@ -1192,7 +1192,7 @@
                 card.onclick = () => openDiary(d.id);
 
                 const dateObj = new Date(d.timestamp);
-                const photoList = d.photos || (d.photo ? [d.photo] : []);
+                const photoList = (d.photos || (d.photo ? [d.photo] : [])).filter(p => p && typeof p === 'string' && p.length > 50);
                 const photoCount = photoList.length;
                 const hasImage = photoCount > 0 ? `<div class="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden shrink-0 relative"><img src="${photoList[0]}" class="w-full h-full object-cover">${photoCount > 1 ? `<span class="absolute bottom-0 right-0 bg-black/70 text-white text-[8px] font-bold px-1 rounded-tl">×${photoCount}</span>` : ''}</div>` : '';
                 const locBadge = d.location ? `<span class="text-[10px] text-slate-400 flex items-center gap-0.5 max-w-[100px] truncate" title="${d.location}"><svg class="w-2.5 h-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>${d.location.split(' ')[0]}</span>` : '';
@@ -1285,7 +1285,7 @@
                     
                     if (matchedDiaries.length > 0) {
                         const diary = matchedDiaries[0];
-                        const firstPhoto = (diary.photos && diary.photos.length) ? diary.photos[0] : diary.photo;
+                        const firstPhoto = (diary.photos && diary.photos.length) ? diary.photos.find(p => p && p.length > 50) : (diary.photo && diary.photo.length > 50 ? diary.photo : null);
                         if (calDisplayMode === 'photo' && firstPhoto) {
                             cell.className += " calendar-photo-cell text-white border-transparent shadow-sm";
                             cell.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.35)), url(${firstPhoto})`;
@@ -1360,9 +1360,10 @@
                         const locName = d.location ? d.location.split(' ')[0] : '未知地';
                         
                         if (mapDisplayMode === 'photo') {
-                            const bgImage = d.photo ? `url('${d.photo}')` : 'none';
-                            const bgColor = d.photo ? 'transparent' : 'var(--dayone-blue)';
-                            const innerEmoji = d.photo ? '' : `<span style="font-size:24px; line-height:56px;">${d.mood ? d.mood.split(' ')[0] : '📝'}</span>`;
+                            const validPhoto = d.photo && d.photo.length > 50;
+                            const bgImage = validPhoto ? `url('${d.photo}')` : 'none';
+                            const bgColor = validPhoto ? 'transparent' : 'var(--dayone-blue)';
+                            const innerEmoji = validPhoto ? '' : `<span style="font-size:24px; line-height:56px;">${d.mood ? d.mood.split(' ')[0] : '📝'}</span>`;
 
                             const iconHtml = `
                                 <div style="width:60px; height:60px; border-radius:12px; border:2px solid white; box-shadow:0 4px 8px rgba(0,0,0,0.3); background-image:${bgImage}; background-color:${bgColor}; background-size:cover; background-position:center; position:relative; text-align:center;">
@@ -1447,7 +1448,8 @@
                 const element = document.createElement('div');
                 element.className = "bg-white dark:bg-dayone-darkCard p-4 rounded-2xl border border-slate-100 dark:border-dayone-darkBorder hover:border-dayone-blue/40 transition cursor-pointer relative space-y-3";
                 element.onclick = () => { switchSubView('list'); openDiary(d.id); };
-                const hasPhoto = d.photo ? `<div class="rounded-xl overflow-hidden aspect-video bg-slate-100"><img src="${d.photo}" class="w-full h-full object-cover"></div>` : '';
+                const validPhoto = (d.photos && d.photos.find(p => p && p.length > 50)) || (d.photo && d.photo.length > 50 ? d.photo : '');
+                const hasPhoto = validPhoto ? `<div class="rounded-xl overflow-hidden aspect-video bg-slate-100"><img src="${validPhoto}" class="w-full h-full object-cover"></div>` : '';
                 element.innerHTML = `
                     <div class="flex items-center justify-between"><span class="text-xs bg-blue-50 dark:bg-blue-950/50 text-dayone-blue px-2.5 py-1 rounded-full font-bold">${yearsAgo} 年前 (${dateObj.getFullYear()}年)</span><span class="text-[10px] text-slate-400">${dateObj.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'})}</span></div>
                     ${hasPhoto}
@@ -1566,7 +1568,8 @@
 
             displayDiaries.forEach(d => {
                 const dateObj = new Date(d.timestamp);
-                const hasPhoto = d.photo ? `<div class="rounded-xl overflow-hidden w-20 h-20 md:w-24 md:h-24 shrink-0 bg-slate-100"><img src="${d.photo}" class="w-full h-full object-cover"></div>` : '';
+                const validPhotoMd = (d.photos && d.photos.find(p => p && p.length > 50)) || (d.photo && d.photo.length > 50 ? d.photo : '');
+                const hasPhoto = validPhotoMd ? `<div class="rounded-xl overflow-hidden w-20 h-20 md:w-24 md:h-24 shrink-0 bg-slate-100"><img src="${validPhotoMd}" class="w-full h-full object-cover"></div>` : '';
                 
                 const element = document.createElement('div');
                 element.className = "flex gap-4 p-5 bg-white dark:bg-dayone-darkCard rounded-2xl border border-slate-150 dark:border-dayone-darkBorder shadow-sm hover:border-dayone-blue/40 hover:shadow-md cursor-pointer transition";
@@ -1732,7 +1735,7 @@
 
             const totalEntries = filteredDiaries.length;
             const totalPhotos = filteredDiaries.reduce((s, d) => {
-                const pl = d.photos || (d.photo ? [d.photo] : []);
+                const pl = (d.photos || (d.photo ? [d.photo] : [])).filter(p => p && p.length > 50);
                 return s + pl.length;
             }, 0);
             const totalWords = filteredDiaries.reduce((acc, d) => acc + (d.content ? d.content.length : 0), 0);
@@ -2108,7 +2111,7 @@
 
             // 月度封面
             const totalPhotos = monthDiaries.reduce((s, d) => {
-                const pl = d.photos || (d.photo ? [d.photo] : []);
+                const pl = (d.photos || (d.photo ? [d.photo] : [])).filter(p => p && p.length > 50);
                 return s + pl.length;
             }, 0);
             const monthCover = `
@@ -2149,7 +2152,7 @@
                         if (displayPhotos.length === 1) cls += ' jp-wide';
                         else if (i === 0 && displayPhotos.length >= 3) cls += ' jp-wide';
                         else if (i === 4) cls += ' jp-tall';
-                        return `<div class="${cls}" onclick="openPhotoViewer('${d.id}', ${i})"><img src="${p}" alt="photo"></div>`;
+                        return `<div class="${cls}" onclick="event.stopPropagation(); openPhotoViewer('${d.id}', ${i})"><img src="${p}" alt="photo"></div>`;
                     }).join('') + '</div>';
                 }
 
@@ -2168,14 +2171,15 @@
                 const divider = dividers[dayNum % dividers.length];
 
                 // 布局: 有照片时照片在前, 无照片时标题/正文直接跟header
+                // 注意: 卡片整体不绑定onclick — 点击照片放大, 点击其他区域(标题/正文)才打开编辑器
                 return `
-                    <div class="journal-page" id="jp-${d.id}" onclick="openDiary('${d.id}'); switchSubView('list');" style="cursor:pointer">
-                        <button class="jp-save-btn" onclick="saveJournalCard('${d.id}')" title="保存为图片">
+                    <div class="journal-page" id="jp-${d.id}">
+                        <button class="jp-save-btn" onclick="event.stopPropagation(); saveJournalCard('${d.id}')" title="保存为图片">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         </button>
                         <div class="journal-holes"><span></span><span></span><span></span><span></span><span></span></div>
                         <div class="journal-inner">
-                            <div class="jp-header">
+                            <div class="jp-header" onclick="openDiary('${d.id}'); switchSubView('list');" style="cursor:pointer">
                                 <div style="display:flex;align-items:flex-end;gap:8px">
                                     <span class="jp-date-big">${dayNum}</span>
                                     <div class="jp-date-meta">
@@ -2186,10 +2190,10 @@
                                 <div class="jp-emojis">${moodEmoji}${weatherEmoji}${actEmoji}</div>
                             </div>
                             ${polaroidsHtml}
-                            ${d.title ? `<div class="jp-title">${d.title}</div>` : ''}
-                            ${content ? `<div class="jp-body">${content}</div>` : ''}
+                            ${d.title ? `<div class="jp-title" onclick="openDiary('${d.id}'); switchSubView('list');" style="cursor:pointer">${d.title}</div>` : ''}
+                            ${content ? `<div class="jp-body" onclick="openDiary('${d.id}'); switchSubView('list');" style="cursor:pointer">${content}</div>` : ''}
                             <div class="jp-divider">${divider}</div>
-                            <div class="jp-footer">
+                            <div class="jp-footer" onclick="openDiary('${d.id}'); switchSubView('list');" style="cursor:pointer">
                                 ${tagsHtml}
                                 ${d.location ? `<span class="jp-location">📍 ${d.location.split(' ')[0]}</span>` : ''}
                                 <span class="jp-time">${timeStr}</span>
@@ -2204,7 +2208,6 @@
         }
 
         function saveJournalCard(id) {
-            event.stopPropagation();
             const card = document.getElementById('jp-' + id);
             if (!card) return;
 
@@ -2223,7 +2226,6 @@
         /* 图片放大查看器 */
         let jpViewerState = { photos: [], idx: 0 };
         function openPhotoViewer(diaryId, idx) {
-            event.stopPropagation();
             const photos = scrapPhotoCache[diaryId] || [];
             if (photos.length === 0) return;
             jpViewerState = { photos, idx: idx || 0 };
@@ -2254,7 +2256,6 @@
             document.addEventListener('keydown', jpViewerKeyHandler);
         }
         function jpViewerNav(dir) {
-            event.stopPropagation();
             const n = jpViewerState.photos.length;
             jpViewerState.idx = (jpViewerState.idx + dir + n) % n;
             renderPhotoViewer();
@@ -2335,7 +2336,7 @@
             setEditorDatePicker(dStr);
 
             // 加载多图到编辑器
-            currentPhotos = diary.photos ? [...diary.photos] : (diary.photo ? [diary.photo] : []);
+            currentPhotos = (diary.photos ? [...diary.photos] : (diary.photo ? [diary.photo] : [])).filter(p => p && typeof p === 'string' && p.length > 50);
             renderPhotoGallery();
 
             document.getElementById('delete-btn').classList.remove('hidden');

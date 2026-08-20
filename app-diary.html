@@ -227,23 +227,23 @@
         }
         .jp-fullscreen-wrapper {
             position: relative;
-            max-width: 600px; width: 100%;
+            max-width: 880px; width: 100%;
             margin: auto;
         }
         .jp-fullscreen-overlay #jp-fullscreen-card {
             width: 100%;
             box-shadow: 0 8px 40px rgba(0,0,0,0.4);
         }
-        /* 放大时照片尺寸也放大，且完整显示不裁剪 */
+        /* 放大时照片整体等比放大（卡片也放大），保持与小图一致的比例，完整不裁剪 */
         .jp-fullscreen-overlay .jp-polaroid img {
-            width: auto; max-width: 340px; height: auto; max-height: 340px;
+            width: auto; max-width: 200px; height: auto; max-height: 185px;
             object-fit: contain; background: #fff;
         }
-        .jp-fullscreen-overlay .jp-polaroid.jp-wide img { max-width: 440px; }
-        .jp-fullscreen-overlay .jp-polaroid.jp-tall img { max-height: 420px; }
+        .jp-fullscreen-overlay .jp-polaroid.jp-wide img { max-width: 270px; }
+        .jp-fullscreen-overlay .jp-polaroid.jp-tall img { max-height: 240px; }
         .jp-fullscreen-overlay .jp-date-big { font-size: 52px; }
-        .jp-fullscreen-overlay .jp-body { font-size: 15px; line-height: 2.1; }
-        .jp-fullscreen-overlay .jp-title { font-size: 20px; }
+        .jp-fullscreen-overlay .jp-body { font-size: 16px; line-height: 2.1; }
+        .jp-fullscreen-overlay .jp-title { font-size: 21px; }
 
         .jp-fullscreen-toolbar {
             position: sticky; top: 0; z-index: 10;

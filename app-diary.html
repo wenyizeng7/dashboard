@@ -87,108 +87,113 @@
         /* ====== 真手账卡片样式 ====== */
         .journal-page {
             background: linear-gradient(135deg, #fefcf7 0%, #fff9ef 100%);
-            border-radius: 4px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.03);
-            margin-bottom: 20px;
+            border-radius: 6px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.08), 0 0 0 1px rgba(180,140,100,0.08);
+            margin-bottom: 24px;
             overflow: hidden;
             position: relative;
             font-family: 'Georgia', 'Noto Serif SC', serif;
         }
-        /* 纸张纹理 */
+        /* 纸张纹理 + 横线 */
         .journal-page::before {
             content: '';
             position: absolute; inset: 0;
             background-image: 
-                radial-gradient(circle at 20% 80%, rgba(255,228,181,0.15) 0%, transparent 50%),
-                radial-gradient(circle at 80% 20%, rgba(255,182,193,0.1) 0%, transparent 50%);
+                repeating-linear-gradient(transparent, transparent 27px, rgba(180,160,130,0.06) 27px, rgba(180,160,130,0.06) 28px),
+                radial-gradient(circle at 20% 80%, rgba(255,228,181,0.12) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255,182,193,0.08) 0%, transparent 50%);
             pointer-events: none;
             z-index: 0;
         }
         /* 打孔装饰 */
         .journal-holes {
-            position: absolute; left: 10px; top: 0; bottom: 0;
-            width: 12px; display: flex; flex-direction: column;
-            justify-content: space-around; align-items: center;
+            position: absolute; left: 12px; top: 30px; bottom: 30px;
+            width: 10px; display: flex; flex-direction: column;
+            justify-content: space-evenly; align-items: center;
             z-index: 1;
         }
         .journal-holes span {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: rgba(0,0,0,0.08);
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
+            width: 7px; height: 7px; border-radius: 50%;
+            background: rgba(0,0,0,0.06);
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.12);
         }
-        .journal-inner { position: relative; z-index: 2; padding: 20px 20px 20px 36px; }
+        .journal-inner { position: relative; z-index: 2; padding: 24px 24px 20px 42px; }
 
         /* 日期标题区 */
         .jp-header {
             display: flex; align-items: flex-end; justify-content: space-between;
-            border-bottom: 2px dashed rgba(180,140,100,0.3);
-            padding-bottom: 12px; margin-bottom: 14px;
+            border-bottom: 2px dashed rgba(180,140,100,0.25);
+            padding-bottom: 14px; margin-bottom: 16px;
         }
         .jp-date-big {
-            font-size: 38px; font-weight: 900; line-height: 1;
+            font-size: 42px; font-weight: 900; line-height: 0.9;
             color: #5c4a38; font-family: 'Georgia', serif;
+            text-shadow: 1px 1px 0 rgba(180,140,100,0.1);
         }
         .jp-date-meta {
             display: flex; flex-direction: column; gap: 2px;
             font-size: 11px; color: #8b7a6a; font-weight: 600;
         }
-        .jp-date-meta .jp-month { font-size: 14px; font-weight: 800; color: #5c4a38; }
-        .jp-emojis { font-size: 22px; display: flex; gap: 6px; }
+        .jp-date-meta .jp-month { font-size: 15px; font-weight: 800; color: #5c4a38; }
+        .jp-emojis { font-size: 24px; display: flex; gap: 6px; align-items: center; }
 
         /* 拍立得照片 */
         .jp-polaroids {
-            display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;
+            display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;
         }
         .jp-polaroid {
             background: #fff;
-            padding: 6px 6px 20px 6px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+            padding: 6px 6px 8px 6px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.10);
             border-radius: 2px;
-            transition: transform 0.3s;
-        }
-        .jp-polaroid:nth-child(odd) { transform: rotate(-2deg); }
-        .jp-polaroid:nth-child(even) { transform: rotate(1.5deg); }
-        .jp-polaroid:nth-child(3n) { transform: rotate(-1deg); }
-        .jp-polaroid img {
-            display: block; border-radius: 1px;
-            width: 120px; height: 120px; object-fit: cover;
-        }
-        .jp-polaroid.jp-wide img { width: 180px; height: 135px; }
-        .jp-polaroid.jp-tall img { width: 100px; height: 140px; }
-
-        /* 正文区 */
-        .jp-title {
-            font-size: 16px; font-weight: 800; color: #4a3c2e;
-            margin-bottom: 6px; font-family: 'Georgia', 'Noto Serif SC', serif;
-        }
-        .jp-body {
-            font-size: 13px; line-height: 1.85; color: #5a4d3f;
-            font-family: 'Noto Serif SC', 'Georgia', serif;
-            white-space: pre-wrap; word-break: break-word;
-            max-height: 180px; overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
             position: relative;
         }
-        .jp-body::after {
-            content: '';
-            position: absolute; bottom: 0; left: 0; right: 0; height: 40px;
-            background: linear-gradient(transparent, #fefcf7);
+        .jp-polaroid:hover {
+            transform: scale(1.05) !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 10;
+        }
+        .jp-polaroid:nth-child(odd) { transform: rotate(-2.5deg); }
+        .jp-polaroid:nth-child(even) { transform: rotate(2deg); }
+        .jp-polaroid:nth-child(3n) { transform: rotate(-1deg); }
+        .jp-polaroid:nth-child(4n) { transform: rotate(1.5deg); }
+        .jp-polaroid img {
+            display: block; border-radius: 1px;
+            width: 130px; height: 130px; object-fit: cover;
+        }
+        .jp-polaroid.jp-wide img { width: 190px; height: 143px; }
+        .jp-polaroid.jp-tall img { width: 110px; height: 150px; }
+
+        /* 正文区 - 完整显示不截断 */
+        .jp-title {
+            font-size: 17px; font-weight: 800; color: #4a3c2e;
+            margin-bottom: 8px; font-family: 'Georgia', 'Noto Serif SC', serif;
+            border-left: 3px solid rgba(180,140,100,0.3);
+            padding-left: 10px;
+        }
+        .jp-body {
+            font-size: 13.5px; line-height: 2.0; color: #5a4d3f;
+            font-family: 'Noto Serif SC', 'Georgia', serif;
+            white-space: pre-wrap; word-break: break-word;
         }
 
         /* 装饰分隔线 */
         .jp-divider {
-            text-align: center; margin: 10px 0;
-            color: rgba(180,140,100,0.4); font-size: 14px; letter-spacing: 8px;
+            text-align: center; margin: 14px 0 10px;
+            color: rgba(180,140,100,0.35); font-size: 13px; letter-spacing: 10px;
         }
 
         /* 底部标签栏 */
         .jp-footer {
             display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-            margin-top: 12px; padding-top: 10px;
-            border-top: 1px solid rgba(180,140,100,0.15);
+            margin-top: 14px; padding-top: 12px;
+            border-top: 1px solid rgba(180,140,100,0.12);
         }
         .jp-tag {
-            font-size: 10px; padding: 2px 8px; border-radius: 10px;
-            background: rgba(135,170,200,0.15); color: #5a7a9a;
+            font-size: 10px; padding: 3px 10px; border-radius: 12px;
+            background: rgba(135,170,200,0.12); color: #5a7a9a;
             font-weight: 600; font-family: sans-serif;
         }
         .jp-location {
@@ -202,18 +207,55 @@
 
         /* 保存图片按钮 */
         .jp-save-btn {
-            position: absolute; top: 8px; right: 8px; z-index: 5;
-            width: 30px; height: 30px; border-radius: 50%;
-            background: rgba(255,255,255,0.85); border: 1px solid rgba(0,0,0,0.08);
+            position: absolute; top: 10px; right: 10px; z-index: 5;
+            width: 32px; height: 32px; border-radius: 50%;
+            background: rgba(255,255,255,0.9); border: 1px solid rgba(0,0,0,0.06);
             display: flex; align-items: center; justify-content: center;
             cursor: pointer; opacity: 0; transition: opacity 0.2s;
         }
         .journal-page:hover .jp-save-btn { opacity: 1; }
 
+        /* 图片放大查看弹窗 */
+        .jp-viewer-overlay {
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.88);
+            display: flex; align-items: center; justify-content: center;
+            animation: jp-fade-in 0.2s ease;
+        }
+        .jp-viewer-overlay img {
+            max-width: 90vw; max-height: 85vh; border-radius: 8px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+        }
+        .jp-viewer-close {
+            position: absolute; top: 16px; right: 20px;
+            width: 40px; height: 40px; border-radius: 50%;
+            background: rgba(255,255,255,0.15); border: none;
+            color: #fff; font-size: 24px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s;
+        }
+        .jp-viewer-close:hover { background: rgba(255,255,255,0.3); }
+        .jp-viewer-nav {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            width: 44px; height: 44px; border-radius: 50%;
+            background: rgba(255,255,255,0.15); border: none;
+            color: #fff; font-size: 22px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s;
+        }
+        .jp-viewer-nav:hover { background: rgba(255,255,255,0.3); }
+        .jp-viewer-prev { left: 20px; }
+        .jp-viewer-next { right: 20px; }
+        .jp-viewer-counter {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            color: rgba(255,255,255,0.7); font-size: 13px; font-family: sans-serif;
+        }
+        @keyframes jp-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
         /* 月度封面 */
         .jp-month-cover {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 4px; padding: 24px; margin-bottom: 20px;
+            border-radius: 6px; padding: 24px; margin-bottom: 24px;
             color: #fff; position: relative; overflow: hidden;
             box-shadow: 0 2px 12px rgba(0,0,0,0.1);
         }
@@ -2070,13 +2112,16 @@
                 const weatherEmoji = d.weather ? d.weather.split(' ')[0] : '';
                 const actEmoji = d.activity ? d.activity.split(' ')[0] : '';
 
-                // 拍立得照片 (最多4张)
-                const displayPhotos = photoList.slice(0, 4);
+                // 拍立得照片 (最多展示5张) — 无照片则不渲染
+                const displayPhotos = photoList.slice(0, 5);
                 let polaroidsHtml = '';
                 if (displayPhotos.length > 0) {
                     polaroidsHtml = '<div class="jp-polaroids">' + displayPhotos.map((p, i) => {
-                        const cls = i === 0 ? 'jp-polaroid jp-wide' : (i === 3 ? 'jp-polaroid jp-tall' : 'jp-polaroid');
-                        return `<div class="${cls}"><img src="${p}" alt="photo"></div>`;
+                        let cls = 'jp-polaroid';
+                        if (displayPhotos.length === 1) cls += ' jp-wide';
+                        else if (i === 0 && displayPhotos.length >= 3) cls += ' jp-wide';
+                        else if (i === 4) cls += ' jp-tall';
+                        return `<div class="${cls}" onclick="openPhotoViewer(${JSON.stringify(displayPhotos).replace(/"/g,'&quot;')}, ${i})"><img src="${p}" alt="photo"></div>`;
                     }).join('') + '</div>';
                 }
 
@@ -2087,13 +2132,14 @@
                     tagsHtml = tagList.map(t => `<span class="jp-tag">#${t.trim()}</span>`).join('');
                 }
 
-                // 正文 (截断到约200字)
-                const content = (d.content || '').substring(0, 200) + (d.content && d.content.length > 200 ? '…' : '');
+                // 完整正文，不截断
+                const content = d.content || '';
 
                 // 随机装饰
-                const dividers = ['✦ ✦ ✦', '❀ ❀ ❀', '◆ ◆ ◆', '⋆ ⋆ ⋆', '✿ ✿ ✿'];
+                const dividers = ['✦ ✦ ✦', '❀ ❀ ❀', '◆ ◆ ◆', '⋆ ⋆ ⋆', '✿ ✿ ✿', '✧ ✧ ✧'];
                 const divider = dividers[dayNum % dividers.length];
 
+                // 布局: 有照片时照片在前, 无照片时标题/正文直接跟header
                 return `
                     <div class="journal-page" id="jp-${d.id}" onclick="openDiary('${d.id}'); switchSubView('list');" style="cursor:pointer">
                         <button class="jp-save-btn" onclick="saveJournalCard('${d.id}')" title="保存为图片">
@@ -2144,6 +2190,54 @@
             } else {
                 doSaveCard(card, id);
             }
+        }
+
+        /* 图片放大查看器 */
+        let jpViewerState = { photos: [], idx: 0 };
+        function openPhotoViewer(photos, idx) {
+            event.stopPropagation();
+            jpViewerState = { photos, idx: idx || 0 };
+            renderPhotoViewer();
+        }
+        function renderPhotoViewer() {
+            // 移除旧的
+            const old = document.getElementById('jp-viewer');
+            if (old) old.remove();
+
+            const { photos, idx } = jpViewerState;
+            const overlay = document.createElement('div');
+            overlay.id = 'jp-viewer';
+            overlay.className = 'jp-viewer-overlay';
+            overlay.onclick = (e) => { if (e.target === overlay) closePhotoViewer(); };
+
+            let html = `<button class="jp-viewer-close" onclick="closePhotoViewer()">&times;</button>`;
+            if (photos.length > 1) {
+                html += `<button class="jp-viewer-nav jp-viewer-prev" onclick="jpViewerNav(-1)">&#8249;</button>`;
+                html += `<button class="jp-viewer-nav jp-viewer-next" onclick="jpViewerNav(1)">&#8250;</button>`;
+                html += `<div class="jp-viewer-counter">${idx + 1} / ${photos.length}</div>`;
+            }
+            html += `<img src="${photos[idx]}" alt="photo">`;
+            overlay.innerHTML = html;
+            document.body.appendChild(overlay);
+
+            // 键盘导航
+            document.addEventListener('keydown', jpViewerKeyHandler);
+        }
+        function jpViewerNav(dir) {
+            event.stopPropagation();
+            const n = jpViewerState.photos.length;
+            jpViewerState.idx = (jpViewerState.idx + dir + n) % n;
+            renderPhotoViewer();
+        }
+        function jpViewerKeyHandler(e) {
+            if (e.key === 'Escape') closePhotoViewer();
+            else if (e.key === 'ArrowLeft') jpViewerNav(-1);
+            else if (e.key === 'ArrowRight') jpViewerNav(1);
+        }
+        function closePhotoViewer() {
+            const v = document.getElementById('jp-viewer');
+            if (v) v.remove();
+            document.removeEventListener('keydown', jpViewerKeyHandler);
         }
         function doSaveCard(card, id) {
             // 临时隐藏保存按钮

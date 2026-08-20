@@ -84,10 +84,149 @@
         .gallery-thumb .rm-btn { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity .2s; cursor: pointer; }
         .gallery-thumb:hover .rm-btn { opacity: 1; }
         .gallery-thumb .cover-badge { position: absolute; bottom: 4px; left: 4px; font-size: 9px; padding: 1px 6px; border-radius: 8px; background: rgba(0,122,255,0.85); color: #fff; font-weight: 700; }
-        .scrap-card { break-inside: avoid; margin-bottom: 12px; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-        .scrap-photo-grid { display: grid; gap: 2px; }
-        .scrap-photo-grid img { width: 100%; height: 100%; object-fit: cover; }
-        .scrap-month-label { font-size: 18px; font-weight: 900; color: #1e293b; padding: 12px 4px 8px; border-bottom: 2px solid #e2e8f0; margin-bottom: 12px; }
+        /* ====== 真手账卡片样式 ====== */
+        .journal-page {
+            background: linear-gradient(135deg, #fefcf7 0%, #fff9ef 100%);
+            border-radius: 4px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.03);
+            margin-bottom: 20px;
+            overflow: hidden;
+            position: relative;
+            font-family: 'Georgia', 'Noto Serif SC', serif;
+        }
+        /* 纸张纹理 */
+        .journal-page::before {
+            content: '';
+            position: absolute; inset: 0;
+            background-image: 
+                radial-gradient(circle at 20% 80%, rgba(255,228,181,0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255,182,193,0.1) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        /* 打孔装饰 */
+        .journal-holes {
+            position: absolute; left: 10px; top: 0; bottom: 0;
+            width: 12px; display: flex; flex-direction: column;
+            justify-content: space-around; align-items: center;
+            z-index: 1;
+        }
+        .journal-holes span {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: rgba(0,0,0,0.08);
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
+        }
+        .journal-inner { position: relative; z-index: 2; padding: 20px 20px 20px 36px; }
+
+        /* 日期标题区 */
+        .jp-header {
+            display: flex; align-items: flex-end; justify-content: space-between;
+            border-bottom: 2px dashed rgba(180,140,100,0.3);
+            padding-bottom: 12px; margin-bottom: 14px;
+        }
+        .jp-date-big {
+            font-size: 38px; font-weight: 900; line-height: 1;
+            color: #5c4a38; font-family: 'Georgia', serif;
+        }
+        .jp-date-meta {
+            display: flex; flex-direction: column; gap: 2px;
+            font-size: 11px; color: #8b7a6a; font-weight: 600;
+        }
+        .jp-date-meta .jp-month { font-size: 14px; font-weight: 800; color: #5c4a38; }
+        .jp-emojis { font-size: 22px; display: flex; gap: 6px; }
+
+        /* 拍立得照片 */
+        .jp-polaroids {
+            display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;
+        }
+        .jp-polaroid {
+            background: #fff;
+            padding: 6px 6px 20px 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+            border-radius: 2px;
+            transition: transform 0.3s;
+        }
+        .jp-polaroid:nth-child(odd) { transform: rotate(-2deg); }
+        .jp-polaroid:nth-child(even) { transform: rotate(1.5deg); }
+        .jp-polaroid:nth-child(3n) { transform: rotate(-1deg); }
+        .jp-polaroid img {
+            display: block; border-radius: 1px;
+            width: 120px; height: 120px; object-fit: cover;
+        }
+        .jp-polaroid.jp-wide img { width: 180px; height: 135px; }
+        .jp-polaroid.jp-tall img { width: 100px; height: 140px; }
+
+        /* 正文区 */
+        .jp-title {
+            font-size: 16px; font-weight: 800; color: #4a3c2e;
+            margin-bottom: 6px; font-family: 'Georgia', 'Noto Serif SC', serif;
+        }
+        .jp-body {
+            font-size: 13px; line-height: 1.85; color: #5a4d3f;
+            font-family: 'Noto Serif SC', 'Georgia', serif;
+            white-space: pre-wrap; word-break: break-word;
+            max-height: 180px; overflow: hidden;
+            position: relative;
+        }
+        .jp-body::after {
+            content: '';
+            position: absolute; bottom: 0; left: 0; right: 0; height: 40px;
+            background: linear-gradient(transparent, #fefcf7);
+        }
+
+        /* 装饰分隔线 */
+        .jp-divider {
+            text-align: center; margin: 10px 0;
+            color: rgba(180,140,100,0.4); font-size: 14px; letter-spacing: 8px;
+        }
+
+        /* 底部标签栏 */
+        .jp-footer {
+            display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+            margin-top: 12px; padding-top: 10px;
+            border-top: 1px solid rgba(180,140,100,0.15);
+        }
+        .jp-tag {
+            font-size: 10px; padding: 2px 8px; border-radius: 10px;
+            background: rgba(135,170,200,0.15); color: #5a7a9a;
+            font-weight: 600; font-family: sans-serif;
+        }
+        .jp-location {
+            font-size: 10px; color: #a08b78; font-family: sans-serif;
+            display: flex; align-items: center; gap: 2px;
+        }
+        .jp-time {
+            font-size: 10px; color: #b8a898; margin-left: auto;
+            font-family: sans-serif;
+        }
+
+        /* 保存图片按钮 */
+        .jp-save-btn {
+            position: absolute; top: 8px; right: 8px; z-index: 5;
+            width: 30px; height: 30px; border-radius: 50%;
+            background: rgba(255,255,255,0.85); border: 1px solid rgba(0,0,0,0.08);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; opacity: 0; transition: opacity 0.2s;
+        }
+        .journal-page:hover .jp-save-btn { opacity: 1; }
+
+        /* 月度封面 */
+        .jp-month-cover {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px; padding: 24px; margin-bottom: 20px;
+            color: #fff; position: relative; overflow: hidden;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .jp-month-cover::before {
+            content: ''; position: absolute; top: -20px; right: -20px;
+            width: 100px; height: 100px; border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+        }
+        .jp-month-cover::after {
+            content: ''; position: absolute; bottom: -30px; left: -10px;
+            width: 80px; height: 80px; border-radius: 50%;
+            background: rgba(255,255,255,0.08);
+        }
     </style>
 </head>
 <body class="bg-[#f8fafc] dark:bg-dayone-darkBg text-slate-800 dark:text-slate-100 transition-colors duration-200 overflow-hidden">
@@ -1881,7 +2020,7 @@
             lucide.createIcons();
         }
 
-        /* ===== 手账式总结视图 ===== */
+        /* ===== 真手账式视图 ===== */
         function renderScrapbook() {
             const y = scrapDisplayDate.getFullYear();
             const m = scrapDisplayDate.getMonth();
@@ -1890,7 +2029,7 @@
             const monthDiaries = diaries.filter(d => {
                 const dd = new Date(d.timestamp);
                 return dd.getFullYear() === y && dd.getMonth() === m;
-            }).sort((a, b) => b.timestamp - a.timestamp); // 最近的在前
+            }).sort((a, b) => b.timestamp - a.timestamp);
 
             const container = document.getElementById('scrap-content');
             if (monthDiaries.length === 0) {
@@ -1899,75 +2038,133 @@
                 return;
             }
 
-            // 月度统计
+            // 月度封面
             const totalPhotos = monthDiaries.reduce((s, d) => {
                 const pl = d.photos || (d.photo ? [d.photo] : []);
                 return s + pl.length;
             }, 0);
-            const summaryHtml = `
-                <div class="rounded-2xl bg-gradient-to-br from-rose-50 to-amber-50 dark:from-rose-950/30 dark:to-amber-950/20 p-4 mb-4 border border-rose-100 dark:border-rose-900/30">
-                    <div class="flex items-center gap-4">
-                        <div class="text-center"><div class="text-2xl font-black text-rose-500">${monthDiaries.length}</div><div class="text-[10px] text-slate-500 font-bold">篇日记</div></div>
-                        <div class="text-center"><div class="text-2xl font-black text-amber-500">${totalPhotos}</div><div class="text-[10px] text-slate-500 font-bold">张照片</div></div>
-                        <div class="text-center"><div class="text-2xl font-black text-blue-500">${monthDiaries.filter(d => d.mood).length}</div><div class="text-[10px] text-slate-500 font-bold">记录心情</div></div>
+            const monthCover = `
+                <div class="jp-month-cover">
+                    <div style="position:relative;z-index:1">
+                        <div style="font-size:11px;opacity:0.8;font-weight:600;letter-spacing:2px">JOURNAL</div>
+                        <div style="font-size:32px;font-weight:900;line-height:1.1;margin:4px 0">${y}.${String(m+1).padStart(2,'0')}</div>
+                        <div style="display:flex;gap:16px;margin-top:8px;font-size:12px;opacity:0.9">
+                            <span><b style="font-size:18px">${monthDiaries.length}</b> 篇日记</span>
+                            <span><b style="font-size:18px">${totalPhotos}</b> 张照片</span>
+                            <span><b style="font-size:18px">${monthDiaries.filter(d=>d.mood).length}</b> 记录心情</span>
+                        </div>
                     </div>
                 </div>
             `;
 
-            // 每篇日记手账卡片
+            // 每篇日记 → 手账内页卡片
             const cardsHtml = monthDiaries.map(d => {
                 const dateObj = new Date(d.timestamp);
-                const dateStr = dateObj.toLocaleString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' });
+                const dayNum = dateObj.getDate();
+                const weekdayMap = ['日','一','二','三','四','五','六'];
+                const weekday = weekdayMap[dateObj.getDay()];
+                const monthStr = `${m+1}月`;
                 const timeStr = dateObj.toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' });
                 const photoList = d.photos || (d.photo ? [d.photo] : []);
+                const moodEmoji = d.mood ? d.mood.split(' ')[0] : '';
+                const weatherEmoji = d.weather ? d.weather.split(' ')[0] : '';
+                const actEmoji = d.activity ? d.activity.split(' ')[0] : '';
 
-                // 照片网格 (最多展示4张)
+                // 拍立得照片 (最多4张)
                 const displayPhotos = photoList.slice(0, 4);
-                let photoHtml = '';
-                if (displayPhotos.length === 1) {
-                    photoHtml = `<div class="rounded-xl overflow-hidden mb-2"><img src="${displayPhotos[0]}" class="w-full max-h-64 object-cover"></div>`;
-                } else if (displayPhotos.length === 2) {
-                    photoHtml = `<div class="scrap-photo-grid grid-cols-2 mb-2" style="height:140px">${displayPhotos.map(p => `<img src="${p}">`).join('')}</div>`;
-                } else if (displayPhotos.length === 3) {
-                    photoHtml = `<div class="scrap-photo-grid mb-2" style="grid-template-columns:2fr 1fr;height:140px"><div style="grid-row:span 2"><img src="${displayPhotos[0]}"></div><img src="${displayPhotos[1]}"><img src="${displayPhotos[2]}"></div>`;
-                } else if (displayPhotos.length >= 4) {
-                    photoHtml = `<div class="scrap-photo-grid grid-cols-2 mb-2" style="height:160px">${displayPhotos.map(p => `<div class="relative"><img src="${p}">${photoList.length > 4 ? '<span class="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-xs font-bold">+' + (photoList.length - 4) + '</span>' : ''}</div>`).join('')}</div>`;
+                let polaroidsHtml = '';
+                if (displayPhotos.length > 0) {
+                    polaroidsHtml = '<div class="jp-polaroids">' + displayPhotos.map((p, i) => {
+                        const cls = i === 0 ? 'jp-polaroid jp-wide' : (i === 3 ? 'jp-polaroid jp-tall' : 'jp-polaroid');
+                        return `<div class="${cls}"><img src="${p}" alt="photo"></div>`;
+                    }).join('') + '</div>';
                 }
 
                 // 标签
                 let tagsHtml = '';
                 if (d.tags) {
                     const tagList = d.tags.split(/[,，]/).filter(t => t.trim());
-                    tagsHtml = tagList.map(t => `<span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-dayone-blue font-medium">#${t.trim()}</span>`).join('');
+                    tagsHtml = tagList.map(t => `<span class="jp-tag">#${t.trim()}</span>`).join('');
                 }
 
-                const moodEmoji = d.mood ? d.mood.split(' ')[0] : '';
-                const weatherEmoji = d.weather ? d.weather.split(' ')[0] : '';
-                const actEmoji = d.activity ? d.activity.split(' ')[0] : '';
+                // 正文 (截断到约200字)
+                const content = (d.content || '').substring(0, 200) + (d.content && d.content.length > 200 ? '…' : '');
+
+                // 随机装饰
+                const dividers = ['✦ ✦ ✦', '❀ ❀ ❀', '◆ ◆ ◆', '⋆ ⋆ ⋆', '✿ ✿ ✿'];
+                const divider = dividers[dayNum % dividers.length];
 
                 return `
-                    <div class="scrap-card p-4" onclick="openDiary('${d.id}'); switchSubView('list');">
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="flex items-center gap-2">
-                                <span class="text-lg font-black text-slate-700 dark:text-slate-200">${dateObj.getDate()}</span>
-                                <span class="text-[10px] text-slate-400 font-bold">${dateObj.toLocaleString('zh-CN', { month: 'short', weekday: 'short' })}</span>
+                    <div class="journal-page" id="jp-${d.id}" onclick="openDiary('${d.id}'); switchSubView('list');" style="cursor:pointer">
+                        <button class="jp-save-btn" onclick="saveJournalCard('${d.id}')" title="保存为图片">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        </button>
+                        <div class="journal-holes"><span></span><span></span><span></span><span></span><span></span></div>
+                        <div class="journal-inner">
+                            <div class="jp-header">
+                                <div style="display:flex;align-items:flex-end;gap:8px">
+                                    <span class="jp-date-big">${dayNum}</span>
+                                    <div class="jp-date-meta">
+                                        <span class="jp-month">${monthStr}</span>
+                                        <span>星期${weekday}</span>
+                                    </div>
+                                </div>
+                                <div class="jp-emojis">${moodEmoji}${weatherEmoji}${actEmoji}</div>
                             </div>
-                            <div class="flex items-center gap-1.5 text-base">${moodEmoji}${weatherEmoji}${actEmoji}</div>
-                        </div>
-                        ${photoHtml}
-                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-1">${d.title || '无标题记录'}</h4>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-3">${(d.content || '').replace(/\n/g, '<br>')}</p>
-                        <div class="flex items-center gap-1.5 mt-2 flex-wrap">
-                            ${tagsHtml}
-                            ${d.location ? `<span class="text-[10px] text-slate-400">📍 ${d.location.split(' ')[0]}</span>` : ''}
-                            <span class="text-[10px] text-slate-300 ml-auto">${timeStr}</span>
+                            ${polaroidsHtml}
+                            ${d.title ? `<div class="jp-title">${d.title}</div>` : ''}
+                            ${content ? `<div class="jp-body">${content}</div>` : ''}
+                            <div class="jp-divider">${divider}</div>
+                            <div class="jp-footer">
+                                ${tagsHtml}
+                                ${d.location ? `<span class="jp-location">📍 ${d.location.split(' ')[0]}</span>` : ''}
+                                <span class="jp-time">${timeStr}</span>
+                            </div>
                         </div>
                     </div>
                 `;
             }).join('');
 
-            container.innerHTML = summaryHtml + cardsHtml;
+            container.innerHTML = monthCover + cardsHtml;
             lucide.createIcons();
+        }
+
+        function saveJournalCard(id) {
+            event.stopPropagation();
+            const card = document.getElementById('jp-' + id);
+            if (!card) return;
+
+            // 动态加载 html2canvas
+            if (typeof html2canvas === 'undefined') {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                s.onload = () => doSaveCard(card, id);
+                s.onerror = () => alert('图片库加载失败，请检查网络');
+                document.head.appendChild(s);
+            } else {
+                doSaveCard(card, id);
+            }
+        }
+        function doSaveCard(card, id) {
+            // 临时隐藏保存按钮
+            const btn = card.querySelector('.jp-save-btn');
+            if (btn) btn.style.display = 'none';
+            html2canvas(card, {
+                backgroundColor: '#fefcf7',
+                scale: 2,
+                useCORS: true,
+                allowTaint: true,
+            }).then(canvas => {
+                if (btn) btn.style.display = '';
+                const link = document.createElement('a');
+                link.download = `journal-${id}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }).catch(err => {
+                if (btn) btn.style.display = '';
+                console.error(err);
+                alert('保存失败：' + err.message);
+            });
         }
 
         function scrapPrevMonth() {

@@ -161,10 +161,11 @@
         .jp-polaroid:nth-child(4n) { transform: rotate(1.5deg); }
         .jp-polaroid img {
             display: block; border-radius: 1px;
-            width: 130px; height: 130px; object-fit: cover;
+            width: auto; max-width: 200px; height: auto; max-height: 200px;
+            object-fit: contain; background: #fff;
         }
-        .jp-polaroid.jp-wide img { width: 190px; height: 143px; }
-        .jp-polaroid.jp-tall img { width: 110px; height: 150px; }
+        .jp-polaroid.jp-wide img { max-width: 280px; }
+        .jp-polaroid.jp-tall img { max-height: 260px; }
 
         /* 正文区 - 完整显示不截断 */
         .jp-title {
@@ -233,12 +234,13 @@
             width: 100%;
             box-shadow: 0 8px 40px rgba(0,0,0,0.4);
         }
-        /* 放大时照片尺寸也放大 */
+        /* 放大时照片尺寸也放大，且完整显示不裁剪 */
         .jp-fullscreen-overlay .jp-polaroid img {
-            width: 200px; height: 200px;
+            width: auto; max-width: 340px; height: auto; max-height: 340px;
+            object-fit: contain; background: #fff;
         }
-        .jp-fullscreen-overlay .jp-polaroid.jp-wide img { width: 280px; height: 210px; }
-        .jp-fullscreen-overlay .jp-polaroid.jp-tall img { width: 170px; height: 230px; }
+        .jp-fullscreen-overlay .jp-polaroid.jp-wide img { max-width: 440px; }
+        .jp-fullscreen-overlay .jp-polaroid.jp-tall img { max-height: 420px; }
         .jp-fullscreen-overlay .jp-date-big { font-size: 52px; }
         .jp-fullscreen-overlay .jp-body { font-size: 15px; line-height: 2.1; }
         .jp-fullscreen-overlay .jp-title { font-size: 20px; }
@@ -256,6 +258,8 @@
             transition: background 0.2s;
         }
         .jp-fs-btn:hover { background: rgba(255,255,255,0.4); }
+        .jp-fs-btn:disabled { opacity: 0.25; cursor: default; }
+        .jp-fs-btn:disabled:hover { background: rgba(255,255,255,0.2); }
         @keyframes jp-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
         /* 月度封面 */
@@ -868,6 +872,31 @@
 
     <script>
         let diaries = [];
+        // 严格校验照片是否有效：必须是 data:image 且 base64 段有真实内容，或 http(s) 链接。
+        // 这样可彻底排除空字符串、空格、以及 "data:image/png;base64," 这种前缀合法但内容为空的损坏占位。
+        function isValidPhoto(p) {
+            if (typeof p !== 'string' || p.length < 30) return false;
+            if (p.startsWith('data:image')) {
+                const i = p.indexOf(',');
+                return i > -1 && (p.length - i) > 30; // base64 内容至少 ~30 字符
+            }
+            if (p.startsWith('http://') || p.startsWith('https://')) return true;
+            return false;
+        }
+        // 清理日记中的无效照片（原地修改内存数据），返回是否发生了清理
+        function sanitizeDiaryPhotos(list) {
+            let changed = false;
+            (list || []).forEach(d => {
+                if (Array.isArray(d.photos)) {
+                    const clean = d.photos.filter(isValidPhoto);
+                    if (clean.length !== d.photos.length) { d.photos = clean; changed = true; }
+                } else if (d.photos && !isValidPhoto(d.photos)) {
+                    d.photos = []; changed = true;
+                }
+                if (d.photo && !isValidPhoto(d.photo)) { d.photo = ''; changed = true; }
+            });
+            return changed;
+        }
         let currentPhotos = []; // 多图数组 (data-URL strings)
         let currentDiaryId = null;
         let scrapDisplayDate = new Date(); // 手账当前显示月份
@@ -1082,7 +1111,12 @@
             } else { 
                 diaries = JSON.parse(saved); 
             }
-            
+
+            // 清理历史数据中的损坏/空照片字段，避免渲染出空白图片占位
+            if (sanitizeDiaryPhotos(diaries)) {
+                try { saveDiariesToLocal(); } catch(e) {}
+            }
+
             diaries.sort((a, b) => b.timestamp - a.timestamp);
             
             renderDiariesList();
@@ -1198,7 +1232,7 @@
                 card.onclick = () => openDiary(d.id);
 
                 const dateObj = new Date(d.timestamp);
-                const photoList = (d.photos || (d.photo ? [d.photo] : [])).filter(p => p && typeof p === 'string' && p.length > 50);
+                const photoList = (d.photos || (d.photo ? [d.photo] : [])).filter(isValidPhoto);
                 const photoCount = photoList.length;
                 const hasImage = photoCount > 0 ? `<div class="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden shrink-0 relative"><img src="${photoList[0]}" class="w-full h-full object-cover">${photoCount > 1 ? `<span class="absolute bottom-0 right-0 bg-black/70 text-white text-[8px] font-bold px-1 rounded-tl">×${photoCount}</span>` : ''}</div>` : '';
                 const locBadge = d.location ? `<span class="text-[10px] text-slate-400 flex items-center gap-0.5 max-w-[100px] truncate" title="${d.location}"><svg class="w-2.5 h-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>${d.location.split(' ')[0]}</span>` : '';
@@ -1291,7 +1325,7 @@
                     
                     if (matchedDiaries.length > 0) {
                         const diary = matchedDiaries[0];
-                        const firstPhoto = (diary.photos && diary.photos.length) ? diary.photos.find(p => p && p.length > 50) : (diary.photo && diary.photo.length > 50 ? diary.photo : null);
+                        const firstPhoto = (diary.photos && diary.photos.length) ? diary.photos.find(isValidPhoto) : (diary.photo && typeof diary.photo === 'string' && diary.photo.length > 100 && (diary.photo.startsWith('data:image') || diary.photo.startsWith('http')) ? diary.photo : null);
                         if (calDisplayMode === 'photo' && firstPhoto) {
                             cell.className += " calendar-photo-cell text-white border-transparent shadow-sm";
                             cell.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.35)), url(${firstPhoto})`;
@@ -1366,7 +1400,7 @@
                         const locName = d.location ? d.location.split(' ')[0] : '未知地';
                         
                         if (mapDisplayMode === 'photo') {
-                            const validPhoto = d.photo && d.photo.length > 50;
+                            const validPhoto = d.photo && typeof d.photo === 'string' && d.photo.length > 100 && (d.photo.startsWith('data:image') || d.photo.startsWith('http'));
                             const bgImage = validPhoto ? `url('${d.photo}')` : 'none';
                             const bgColor = validPhoto ? 'transparent' : 'var(--dayone-blue)';
                             const innerEmoji = validPhoto ? '' : `<span style="font-size:24px; line-height:56px;">${d.mood ? d.mood.split(' ')[0] : '📝'}</span>`;
@@ -1454,7 +1488,7 @@
                 const element = document.createElement('div');
                 element.className = "bg-white dark:bg-dayone-darkCard p-4 rounded-2xl border border-slate-100 dark:border-dayone-darkBorder hover:border-dayone-blue/40 transition cursor-pointer relative space-y-3";
                 element.onclick = () => { switchSubView('list'); openDiary(d.id); };
-                const validPhoto = (d.photos && d.photos.find(p => p && p.length > 50)) || (d.photo && d.photo.length > 50 ? d.photo : '');
+                const validPhoto = (d.photos && d.photos.find(isValidPhoto)) || (d.photo && typeof d.photo === 'string' && d.photo.length > 100 && (d.photo.startsWith('data:image') || d.photo.startsWith('http')) ? d.photo : '');
                 const hasPhoto = validPhoto ? `<div class="rounded-xl overflow-hidden aspect-video bg-slate-100"><img src="${validPhoto}" class="w-full h-full object-cover"></div>` : '';
                 element.innerHTML = `
                     <div class="flex items-center justify-between"><span class="text-xs bg-blue-50 dark:bg-blue-950/50 text-dayone-blue px-2.5 py-1 rounded-full font-bold">${yearsAgo} 年前 (${dateObj.getFullYear()}年)</span><span class="text-[10px] text-slate-400">${dateObj.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'})}</span></div>
@@ -1574,7 +1608,7 @@
 
             displayDiaries.forEach(d => {
                 const dateObj = new Date(d.timestamp);
-                const validPhotoMd = (d.photos && d.photos.find(p => p && p.length > 50)) || (d.photo && d.photo.length > 50 ? d.photo : '');
+                const validPhotoMd = (d.photos && d.photos.find(isValidPhoto)) || (d.photo && d.photo.length > 100 && (d.photo.startsWith('data:image') || d.photo.startsWith('http')) ? d.photo : '');
                 const hasPhoto = validPhotoMd ? `<div class="rounded-xl overflow-hidden w-20 h-20 md:w-24 md:h-24 shrink-0 bg-slate-100"><img src="${validPhotoMd}" class="w-full h-full object-cover"></div>` : '';
                 
                 const element = document.createElement('div');
@@ -1741,7 +1775,7 @@
 
             const totalEntries = filteredDiaries.length;
             const totalPhotos = filteredDiaries.reduce((s, d) => {
-                const pl = (d.photos || (d.photo ? [d.photo] : [])).filter(p => p && p.length > 50);
+                const pl = (d.photos || (d.photo ? [d.photo] : [])).filter(isValidPhoto);
                 return s + pl.length;
             }, 0);
             const totalWords = filteredDiaries.reduce((acc, d) => acc + (d.content ? d.content.length : 0), 0);
@@ -2074,6 +2108,8 @@
 
         /* ===== 真手账式视图 ===== */
         let scrapPhotoCache = {}; // legacy, kept for compatibility
+        let scrapCardList = []; // 当月日记ID列表，供全屏翻页
+        let scrapCardIdx = 0; // 当前全屏查看的索引
 
         function initScrapSelectors() {
             const now = new Date();
@@ -2108,6 +2144,9 @@
                 return dd.getFullYear() === y && dd.getMonth() === m;
             }).sort((a, b) => b.timestamp - a.timestamp);
 
+            // 存储当月日记ID列表，供全屏查看器翻页
+            scrapCardList = monthDiaries.map(d => d.id);
+
             const container = document.getElementById('scrap-content');
             if (monthDiaries.length === 0) {
                 container.innerHTML = `<div class="text-center py-16 text-slate-400"><i data-lucide="book-x" class="w-8 h-8 mx-auto mb-2 opacity-40"></i><p class="text-xs">本月还没有日记，去写一篇吧</p></div>`;
@@ -2117,7 +2156,7 @@
 
             // 月度封面
             const totalPhotos = monthDiaries.reduce((s, d) => {
-                const pl = (d.photos || (d.photo ? [d.photo] : [])).filter(p => p && p.length > 50);
+                const pl = (d.photos || (d.photo ? [d.photo] : [])).filter(isValidPhoto);
                 return s + pl.length;
             }, 0);
             const monthCover = `
@@ -2142,7 +2181,7 @@
                 const weekday = weekdayMap[dateObj.getDay()];
                 const monthStr = `${m+1}月`;
                 const timeStr = dateObj.toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-                const photoList = (d.photos || (d.photo ? [d.photo] : [])).filter(p => p && p.length > 50); // 过滤掉空值(有效data-URL至少50字符)
+                const photoList = (d.photos || (d.photo ? [d.photo] : [])).filter(isValidPhoto); // 严格过滤：必须是有效的图片URL
                 const moodEmoji = d.mood ? d.mood.split(' ')[0] : '';
                 const weatherEmoji = d.weather ? d.weather.split(' ')[0] : '';
                 const actEmoji = d.activity ? d.activity.split(' ')[0] : '';
@@ -2230,21 +2269,28 @@
             }
         }
 
-        /* 手账卡片放大查看器 — 点击卡片任意位置弹出完整手账页面 */
+        /* 手账卡片放大查看器 — 点击卡片任意位置弹出完整手账页面，支持翻页 */
         function openJournalFull(id) {
-            const card = document.getElementById('jp-' + id);
-            if (!card) return;
-
+            // 找到当前日记在列表中的索引
+            scrapCardIdx = scrapCardList.indexOf(id);
+            if (scrapCardIdx < 0) scrapCardIdx = 0;
+            renderJournalFull();
+        }
+        function renderJournalFull() {
             // 移除旧弹窗
             const old = document.getElementById('jp-fullscreen');
             if (old) old.remove();
+
+            const id = scrapCardList[scrapCardIdx];
+            if (!id) return;
+            const card = document.getElementById('jp-' + id);
+            if (!card) return;
 
             // 克隆卡片
             const clone = card.cloneNode(true);
             clone.id = 'jp-fullscreen-card';
             clone.style.margin = '0';
             clone.style.cursor = 'default';
-            // 隐藏克隆中的保存按钮
             const saveBtn = clone.querySelector('.jp-save-btn');
             if (saveBtn) saveBtn.style.display = 'none';
 
@@ -2261,14 +2307,23 @@
             const toolbar = document.createElement('div');
             toolbar.className = 'jp-fullscreen-toolbar';
             toolbar.innerHTML = `
-                <button class="jp-fs-btn" onclick="closeJournalFull()" title="关闭">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <span style="color:rgba(255,255,255,0.6);font-size:13px;font-family:sans-serif;margin-right:auto;align-self:center;padding-left:4px">
+                    ${scrapCardIdx + 1} / ${scrapCardList.length}
+                </span>
+                <button class="jp-fs-btn" onclick="journalFullNav(-1)" title="上一页" ${scrapCardIdx === 0 ? 'disabled style="opacity:0.3"' : ''}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <button class="jp-fs-btn" onclick="journalFullNav(1)" title="下一页" ${scrapCardIdx === scrapCardList.length - 1 ? 'disabled style="opacity:0.3"' : ''}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
                 <button class="jp-fs-btn" onclick="saveJournalCardFullscreen('${id}')" title="保存为图片">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </button>
                 <button class="jp-fs-btn" onclick="editFromFullscreen('${id}')" title="编辑此日记">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="jp-fs-btn" onclick="closeJournalFull()" title="关闭">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             `;
 
@@ -2277,10 +2332,21 @@
             overlay.appendChild(wrapper);
             document.body.appendChild(overlay);
 
+            // 滚动到顶部
+            overlay.scrollTop = 0;
+
             document.addEventListener('keydown', journalFullKeyHandler);
+        }
+        function journalFullNav(dir) {
+            const newIdx = scrapCardIdx + dir;
+            if (newIdx < 0 || newIdx >= scrapCardList.length) return;
+            scrapCardIdx = newIdx;
+            renderJournalFull();
         }
         function journalFullKeyHandler(e) {
             if (e.key === 'Escape') closeJournalFull();
+            else if (e.key === 'ArrowLeft') journalFullNav(-1);
+            else if (e.key === 'ArrowRight') journalFullNav(1);
         }
         function closeJournalFull() {
             const v = document.getElementById('jp-fullscreen');
@@ -2371,7 +2437,7 @@
             setEditorDatePicker(dStr);
 
             // 加载多图到编辑器
-            currentPhotos = (diary.photos ? [...diary.photos] : (diary.photo ? [diary.photo] : [])).filter(p => p && typeof p === 'string' && p.length > 50);
+            currentPhotos = (diary.photos ? [...diary.photos] : (diary.photo ? [diary.photo] : [])).filter(isValidPhoto);
             renderPhotoGallery();
 
             document.getElementById('delete-btn').classList.remove('hidden');

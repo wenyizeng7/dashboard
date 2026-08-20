@@ -79,6 +79,15 @@
         #main-sidebar.collapsed .nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
         #main-sidebar.collapsed .streak-panel { display: none; }
         #main-sidebar.collapsed #sidebar-toggle-btn { transform: rotate(180deg); }
+        .gallery-thumb { position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; }
+        .gallery-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .gallery-thumb .rm-btn { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity .2s; cursor: pointer; }
+        .gallery-thumb:hover .rm-btn { opacity: 1; }
+        .gallery-thumb .cover-badge { position: absolute; bottom: 4px; left: 4px; font-size: 9px; padding: 1px 6px; border-radius: 8px; background: rgba(0,122,255,0.85); color: #fff; font-weight: 700; }
+        .scrap-card { break-inside: avoid; margin-bottom: 12px; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        .scrap-photo-grid { display: grid; gap: 2px; }
+        .scrap-photo-grid img { width: 100%; height: 100%; object-fit: cover; }
+        .scrap-month-label { font-size: 18px; font-weight: 900; color: #1e293b; padding: 12px 4px 8px; border-bottom: 2px solid #e2e8f0; margin-bottom: 12px; }
     </style>
 </head>
 <body class="bg-[#f8fafc] dark:bg-dayone-darkBg text-slate-800 dark:text-slate-100 transition-colors duration-200 overflow-hidden">
@@ -155,6 +164,9 @@
                         <button onclick="switchSubView('onthisday')" id="subview-btn-onthisday" class="flex-1 py-1.5 px-1 text-[11px] font-bold rounded-lg transition text-center flex items-center justify-center gap-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0">
                             <i data-lucide="hourglass" class="w-3.5 h-3.5"></i> 那年
                         </button>
+                        <button onclick="switchSubView('scrapbook')" id="subview-btn-scrapbook" class="flex-1 py-1.5 px-1 text-[11px] font-bold rounded-lg transition text-center flex items-center justify-center gap-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0">
+                            <i data-lucide="book-open" class="w-3.5 h-3.5"></i> 手账
+                        </button>
                     </div>
 
                     <div class="p-4 border-b border-slate-100 dark:border-dayone-darkBorder flex items-center gap-2 shrink-0">
@@ -207,6 +219,20 @@
                         </div>
 
                         <div id="subpanel-onthisday" class="p-4 space-y-4 absolute inset-0 overflow-y-auto hidden fade-in bg-white dark:bg-dayone-darkCard z-10"></div>
+
+                        <div id="subpanel-scrapbook" class="absolute inset-0 overflow-y-auto hidden fade-in bg-slate-50 dark:bg-dayone-darkBg z-10">
+                            <div class="max-w-2xl mx-auto p-4">
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="flex items-center gap-2">
+                                        <button onclick="scrapPrevMonth()" class="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                                        <span id="scrap-month-label" class="text-sm font-black text-slate-700 dark:text-slate-200"></span>
+                                        <button onclick="scrapNextMonth()" class="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                                    </div>
+                                    <button onclick="scrapGoToday()" class="text-[11px] font-bold text-dayone-blue px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 transition">今天</button>
+                                </div>
+                                <div id="scrap-content"></div>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
@@ -237,16 +263,13 @@
                     </div>
 
                     <div class="flex-1 overflow-y-auto p-6 space-y-6 max-w-3xl mx-auto w-full">
-                        <div id="cover-preview-container" class="hidden relative rounded-2xl overflow-hidden aspect-[21/9] bg-slate-200 dark:bg-slate-800 shadow-inner group">
-                            <img id="cover-img" class="w-full h-full object-cover" src="">
-                            <button onclick="removeCoverPhoto()" class="absolute top-3 right-3 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transition opacity-0 group-hover:opacity-100">
-                                <i data-lucide="x" class="w-4 h-4"></i>
-                            </button>
+                        <div id="photo-gallery-container" class="hidden space-y-2">
+                            <div id="photo-gallery" class="grid grid-cols-3 gap-2"></div>
                         </div>
 
                         <div id="no-photo-placeholder" class="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 px-5 py-4 flex items-center gap-3 text-slate-400">
                             <div class="w-10 h-10 rounded-xl bg-white dark:bg-slate-700 flex items-center justify-center shadow-sm"><i data-lucide="pen-line" class="w-5 h-5 text-dayone-blue"></i></div>
-                            <div><div class="text-sm font-semibold text-slate-500 dark:text-slate-300">今天想记录什么？</div><div class="text-xs mt-0.5">可直接开始写，也可以点击右上角图片添加照片</div></div>
+                            <div><div class="text-sm font-semibold text-slate-500 dark:text-slate-300">今天想记录什么？</div><div class="text-xs mt-0.5">可直接开始写，也可以点击右上角图片添加多张照片</div></div>
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -639,7 +662,7 @@
     </div>
 
     <!-- Hidden Utils -->
-    <input type="file" id="photo-upload" accept="image/*" onchange="handlePhotoUpload(event)" class="hidden">
+    <input type="file" id="photo-upload" accept="image/*" multiple onchange="handlePhotoUpload(event)" class="hidden">
     <!-- 数据导入 input -->
     <input type="file" id="data-import-upload" accept=".json,application/json" onchange="handleDataImport(event)" class="hidden">
     
@@ -657,7 +680,9 @@
 
     <script>
         let diaries = [];
+        let currentPhotos = []; // 多图数组 (data-URL strings)
         let currentDiaryId = null;
+        let scrapDisplayDate = new Date(); // 手账当前显示月份
         let editorSelectedDateStr = null; // YYYY-MM-DD, 编辑器当前选中的日记日期
         let activeTab = 'journal';
         let activeSubView = 'list'; 
@@ -835,6 +860,7 @@
                     openDiary(currentDiaryId);
                 }
                 if (typeof activeSubView !== 'undefined' && activeSubView === 'map') renderMapView();
+                if (typeof activeSubView !== 'undefined' && activeSubView === 'scrapbook') renderScrapbook();
             } catch(e) { console.error('[diary] 同步重载失败', e); }
             _syncReloading = false;
         }
@@ -899,7 +925,7 @@
 
         function switchSubView(view) {
             activeSubView = view;
-            const panels = ['list', 'calendar', 'map', 'onthisday'];
+            const panels = ['list', 'calendar', 'map', 'onthisday', 'scrapbook'];
             panels.forEach(p => {
                 const btn = document.getElementById(`subview-btn-${p}`);
                 const panel = document.getElementById(`subpanel-${p}`);
@@ -917,6 +943,7 @@
             if (view === 'map') renderMapView();
             else if (view === 'calendar') renderCalendarView();
             else if (view === 'onthisday') renderOnThisDayView();
+            else if (view === 'scrapbook') renderScrapbook();
             else if (view === 'list') renderDiariesList();
         }
 
@@ -983,7 +1010,9 @@
                 card.onclick = () => openDiary(d.id);
 
                 const dateObj = new Date(d.timestamp);
-                const hasImage = d.photo ? `<div class="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden shrink-0"><img src="${d.photo}" class="w-full h-full object-cover"></div>` : '';
+                const photoList = d.photos || (d.photo ? [d.photo] : []);
+                const photoCount = photoList.length;
+                const hasImage = photoCount > 0 ? `<div class="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden shrink-0 relative"><img src="${photoList[0]}" class="w-full h-full object-cover">${photoCount > 1 ? `<span class="absolute bottom-0 right-0 bg-black/70 text-white text-[8px] font-bold px-1 rounded-tl">×${photoCount}</span>` : ''}</div>` : '';
                 const locBadge = d.location ? `<span class="text-[10px] text-slate-400 flex items-center gap-0.5 max-w-[100px] truncate" title="${d.location}"><svg class="w-2.5 h-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>${d.location.split(' ')[0]}</span>` : '';
 
                 let tagsHTML = '';
@@ -1074,9 +1103,10 @@
                     
                     if (matchedDiaries.length > 0) {
                         const diary = matchedDiaries[0];
-                        if (calDisplayMode === 'photo' && diary.photo) {
+                        const firstPhoto = (diary.photos && diary.photos.length) ? diary.photos[0] : diary.photo;
+                        if (calDisplayMode === 'photo' && firstPhoto) {
                             cell.className += " calendar-photo-cell text-white border-transparent shadow-sm";
-                            cell.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.35)), url(${diary.photo})`;
+                            cell.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.35)), url(${firstPhoto})`;
                             cell.innerHTML = `<span class="drop-shadow-md text-xs font-extrabold">${day}</span>`;
                         } else {
                             let iconToDisplay = '✍️';
@@ -1519,7 +1549,10 @@
             let filteredDiaries = diaries.filter(d => d.timestamp >= rangeInfo.start && d.timestamp <= rangeInfo.end);
 
             const totalEntries = filteredDiaries.length;
-            const totalPhotos = filteredDiaries.filter(d => d.photo).length;
+            const totalPhotos = filteredDiaries.reduce((s, d) => {
+                const pl = d.photos || (d.photo ? [d.photo] : []);
+                return s + pl.length;
+            }, 0);
             const totalWords = filteredDiaries.reduce((acc, d) => acc + (d.content ? d.content.length : 0), 0);
             
             const daysInPeriod = Math.max(1, Math.ceil((Math.min(rangeInfo.end, Date.now()) - rangeInfo.start) / (1000 * 60 * 60 * 24)));
@@ -1848,6 +1881,108 @@
             lucide.createIcons();
         }
 
+        /* ===== 手账式总结视图 ===== */
+        function renderScrapbook() {
+            const y = scrapDisplayDate.getFullYear();
+            const m = scrapDisplayDate.getMonth();
+            document.getElementById('scrap-month-label').textContent = `${y}年${m+1}月`;
+
+            const monthDiaries = diaries.filter(d => {
+                const dd = new Date(d.timestamp);
+                return dd.getFullYear() === y && dd.getMonth() === m;
+            }).sort((a, b) => b.timestamp - a.timestamp); // 最近的在前
+
+            const container = document.getElementById('scrap-content');
+            if (monthDiaries.length === 0) {
+                container.innerHTML = `<div class="text-center py-16 text-slate-400"><i data-lucide="book-x" class="w-8 h-8 mx-auto mb-2 opacity-40"></i><p class="text-xs">本月还没有日记，去写一篇吧</p></div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            // 月度统计
+            const totalPhotos = monthDiaries.reduce((s, d) => {
+                const pl = d.photos || (d.photo ? [d.photo] : []);
+                return s + pl.length;
+            }, 0);
+            const summaryHtml = `
+                <div class="rounded-2xl bg-gradient-to-br from-rose-50 to-amber-50 dark:from-rose-950/30 dark:to-amber-950/20 p-4 mb-4 border border-rose-100 dark:border-rose-900/30">
+                    <div class="flex items-center gap-4">
+                        <div class="text-center"><div class="text-2xl font-black text-rose-500">${monthDiaries.length}</div><div class="text-[10px] text-slate-500 font-bold">篇日记</div></div>
+                        <div class="text-center"><div class="text-2xl font-black text-amber-500">${totalPhotos}</div><div class="text-[10px] text-slate-500 font-bold">张照片</div></div>
+                        <div class="text-center"><div class="text-2xl font-black text-blue-500">${monthDiaries.filter(d => d.mood).length}</div><div class="text-[10px] text-slate-500 font-bold">记录心情</div></div>
+                    </div>
+                </div>
+            `;
+
+            // 每篇日记手账卡片
+            const cardsHtml = monthDiaries.map(d => {
+                const dateObj = new Date(d.timestamp);
+                const dateStr = dateObj.toLocaleString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' });
+                const timeStr = dateObj.toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                const photoList = d.photos || (d.photo ? [d.photo] : []);
+
+                // 照片网格 (最多展示4张)
+                const displayPhotos = photoList.slice(0, 4);
+                let photoHtml = '';
+                if (displayPhotos.length === 1) {
+                    photoHtml = `<div class="rounded-xl overflow-hidden mb-2"><img src="${displayPhotos[0]}" class="w-full max-h-64 object-cover"></div>`;
+                } else if (displayPhotos.length === 2) {
+                    photoHtml = `<div class="scrap-photo-grid grid-cols-2 mb-2" style="height:140px">${displayPhotos.map(p => `<img src="${p}">`).join('')}</div>`;
+                } else if (displayPhotos.length === 3) {
+                    photoHtml = `<div class="scrap-photo-grid mb-2" style="grid-template-columns:2fr 1fr;height:140px"><div style="grid-row:span 2"><img src="${displayPhotos[0]}"></div><img src="${displayPhotos[1]}"><img src="${displayPhotos[2]}"></div>`;
+                } else if (displayPhotos.length >= 4) {
+                    photoHtml = `<div class="scrap-photo-grid grid-cols-2 mb-2" style="height:160px">${displayPhotos.map(p => `<div class="relative"><img src="${p}">${photoList.length > 4 ? '<span class="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-xs font-bold">+' + (photoList.length - 4) + '</span>' : ''}</div>`).join('')}</div>`;
+                }
+
+                // 标签
+                let tagsHtml = '';
+                if (d.tags) {
+                    const tagList = d.tags.split(/[,，]/).filter(t => t.trim());
+                    tagsHtml = tagList.map(t => `<span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-dayone-blue font-medium">#${t.trim()}</span>`).join('');
+                }
+
+                const moodEmoji = d.mood ? d.mood.split(' ')[0] : '';
+                const weatherEmoji = d.weather ? d.weather.split(' ')[0] : '';
+                const actEmoji = d.activity ? d.activity.split(' ')[0] : '';
+
+                return `
+                    <div class="scrap-card p-4" onclick="openDiary('${d.id}'); switchSubView('list');">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-lg font-black text-slate-700 dark:text-slate-200">${dateObj.getDate()}</span>
+                                <span class="text-[10px] text-slate-400 font-bold">${dateObj.toLocaleString('zh-CN', { month: 'short', weekday: 'short' })}</span>
+                            </div>
+                            <div class="flex items-center gap-1.5 text-base">${moodEmoji}${weatherEmoji}${actEmoji}</div>
+                        </div>
+                        ${photoHtml}
+                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-1">${d.title || '无标题记录'}</h4>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-3">${(d.content || '').replace(/\n/g, '<br>')}</p>
+                        <div class="flex items-center gap-1.5 mt-2 flex-wrap">
+                            ${tagsHtml}
+                            ${d.location ? `<span class="text-[10px] text-slate-400">📍 ${d.location.split(' ')[0]}</span>` : ''}
+                            <span class="text-[10px] text-slate-300 ml-auto">${timeStr}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = summaryHtml + cardsHtml;
+            lucide.createIcons();
+        }
+
+        function scrapPrevMonth() {
+            scrapDisplayDate.setMonth(scrapDisplayDate.getMonth() - 1);
+            renderScrapbook();
+        }
+        function scrapNextMonth() {
+            scrapDisplayDate.setMonth(scrapDisplayDate.getMonth() + 1);
+            renderScrapbook();
+        }
+        function scrapGoToday() {
+            scrapDisplayDate = new Date();
+            renderScrapbook();
+        }
+
         function openDiary(id) {
             currentDiaryId = id;
             document.getElementById('editor-pane').classList.remove('hidden');
@@ -1872,13 +2007,9 @@
             const dStr = new Date(dateObj.getTime() - dateObj.getTimezoneOffset()*60000).toISOString().split('T')[0];
             setEditorDatePicker(dStr);
 
-            const coverPreview = document.getElementById('cover-preview-container');
-            const coverImg = document.getElementById('cover-img');
-            if (diary.photo) {
-                coverImg.src = diary.photo; coverPreview.classList.remove('hidden'); document.getElementById('no-photo-placeholder').classList.add('hidden');
-            } else {
-                coverPreview.classList.add('hidden'); coverImg.src = ''; document.getElementById('no-photo-placeholder').classList.remove('hidden');
-            }
+            // 加载多图到编辑器
+            currentPhotos = diary.photos ? [...diary.photos] : (diary.photo ? [diary.photo] : []);
+            renderPhotoGallery();
 
             document.getElementById('delete-btn').classList.remove('hidden');
             document.querySelectorAll('#list-items-container > div').forEach(card => {
@@ -1910,9 +2041,8 @@
             document.getElementById('editor-date-badge').innerText = new Date().toLocaleString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long', hour: '2-digit', minute: '2-digit' });
             // 默认选中今天
             setEditorDatePicker(getTodayStrDiary());
-            document.getElementById('cover-preview-container').classList.add('hidden');
-            document.getElementById('cover-img').src = '';
-            document.getElementById('no-photo-placeholder').classList.remove('hidden');
+            currentPhotos = [];
+            renderPhotoGallery();
             document.getElementById('delete-btn').classList.add('hidden');
             
             document.querySelectorAll('#list-items-container > div').forEach(card => {
@@ -1966,37 +2096,62 @@
         function triggerPhotoUpload() { document.getElementById('photo-upload').click(); }
         
         function handlePhotoUpload(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.src = event.target.result;
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    // 提升最大高度和宽度分辨率到 1200px，在高分屏幕上能够完美点对点显示
-                    const MAX_WIDTH = 1200; 
-                    const scale = MAX_WIDTH / img.width;
-                    if (img.width > MAX_WIDTH) { 
-                        canvas.width = MAX_WIDTH; 
-                        canvas.height = img.height * scale; 
-                    } else { 
-                        canvas.width = img.width; 
-                        canvas.height = img.height; 
-                    }
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    // 提升画质质量至 0.82，防止细节丢失，保证照片色彩和文字线条无比锐利
-                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
-                    document.getElementById('cover-img').src = compressedDataUrl;
-                    document.getElementById('cover-preview-container').classList.remove('hidden');
+            const files = Array.from(e.target.files);
+            if (!files.length) return;
+            let processed = 0;
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 1200;
+                        const scale = MAX_WIDTH / img.width;
+                        if (img.width > MAX_WIDTH) { canvas.width = MAX_WIDTH; canvas.height = img.height * scale; }
+                        else { canvas.width = img.width; canvas.height = img.height; }
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+                        currentPhotos.push(compressedDataUrl);
+                        processed++;
+                        if (processed === files.length) renderPhotoGallery();
+                    };
                 };
-            };
-            reader.readAsDataURL(file);
+                reader.readAsDataURL(file);
+            });
+            e.target.value = '';
+        }
+
+        function renderPhotoGallery() {
+            const container = document.getElementById('photo-gallery-container');
+            const gallery = document.getElementById('photo-gallery');
+            const placeholder = document.getElementById('no-photo-placeholder');
+            if (currentPhotos.length === 0) {
+                container.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+                return;
+            }
+            container.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+            gallery.innerHTML = currentPhotos.map((src, i) => 
+                `<div class="gallery-thumb">
+                    <img src="${src}" onclick="viewPhotoFull(${i})">
+                    ${i === 0 ? '<span class="cover-badge">封面</span>' : ''}
+                    <div class="rm-btn" onclick="removePhoto(${i})">✕</div>
+                </div>`
+            ).join('');
+        }
+
+        function removePhoto(idx) {
+            currentPhotos.splice(idx, 1);
+            renderPhotoGallery();
+        }
+
+        function viewPhotoFull(idx) {
+            window.open(currentPhotos[idx], '_blank');
         }
         
-        function removeCoverPhoto() { document.getElementById('cover-preview-container').classList.add('hidden'); document.getElementById('cover-img').src = ''; }
-
         function injectTemplate(type) {
             const contentArea = document.getElementById('diary-content');
             if (contentArea.value.trim() !== '') {
@@ -2174,7 +2329,8 @@
             const weather = document.getElementById('meta-weather').value;
             const activity = document.getElementById('meta-activity').value;
             const tags = document.getElementById('meta-tags').value.trim();
-            const photo = document.getElementById('cover-img').src || '';
+            const photos = [...currentPhotos]; // 复制多图数组
+            const photo = photos[0] || ''; // 第一张作为封面（兼容旧数据）
             
             const location = document.getElementById('meta-location').value.trim();
             const latVal = document.getElementById('meta-lat').value;
@@ -2204,7 +2360,7 @@
                 }
             }
 
-            const updatedDiary = { id: targetId, title, content, mood, weather, activity, tags, photo, location, lat, lng, timestamp };
+            const updatedDiary = { id: targetId, title, content, mood, weather, activity, tags, photo, photos, location, lat, lng, timestamp };
 
             if (isNew) diaries.unshift(updatedDiary);
             else { const idx = diaries.findIndex(d => d.id === currentDiaryId); if (idx !== -1) diaries[idx] = updatedDiary; }
@@ -2342,6 +2498,7 @@
                 renderOnThisDayView();
                 calculateStreak();
                 if (typeof activeSubView !== 'undefined' && activeSubView === 'map') renderMapView();
+                if (typeof activeSubView !== 'undefined' && activeSubView === 'scrapbook') renderScrapbook();
             } catch(e) { console.error('[diary] 轻量刷新失败', e); }
             _syncReloading = false;
         }

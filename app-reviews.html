@@ -949,6 +949,7 @@ const app = {
       list.innerHTML = reviews.map(r => {
         const cat = state.categories.find(c => c.id === r.categoryId) || { icon: '🍴', color: '#9ca3af' };
         const stars = r.rating ? `<span class="text-amber-400 text-xs">${this.renderStars(r.rating)}</span>` : '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-500 font-bold">待点评</span>';
+        const price = (r.price != null && r.price !== '') ? `<span class="text-sm font-bold text-slate-500">¥${this.fmtMoney(r.price)}</span>` : '';
         return `
           <div class="flex items-center gap-2 p-3 rounded-xl bg-white border border-slate-100">
             <div class="w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0" style="background:${cat.color}15">${cat.icon}</div>
@@ -957,6 +958,7 @@ const app = {
               <p class="text-[10px] text-slate-400 truncate">${this.escape(r.place || '')}</p>
             </div>
             ${stars}
+            ${price}
           </div>
         `;
       }).join('');

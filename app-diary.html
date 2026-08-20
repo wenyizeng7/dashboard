@@ -406,7 +406,8 @@
                                 <div class="flex items-center justify-between mb-3">
                                     <div class="flex items-center gap-2">
                                         <button onclick="scrapPrevMonth()" class="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-                                        <span id="scrap-month-label" class="text-sm font-black text-slate-700 dark:text-slate-200"></span>
+                                        <select id="scrap-year-sel" onchange="scrapJumpToMonth()" class="text-sm font-bold text-slate-700 dark:text-slate-200 bg-transparent border-none outline-none cursor-pointer"></select>
+                                        <select id="scrap-month-sel" onchange="scrapJumpToMonth()" class="text-sm font-bold text-slate-700 dark:text-slate-200 bg-transparent border-none outline-none cursor-pointer"></select>
                                         <button onclick="scrapNextMonth()" class="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
                                     </div>
                                     <button onclick="scrapGoToday()" class="text-[11px] font-bold text-dayone-blue px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 transition">今天</button>
@@ -2063,10 +2064,35 @@
         }
 
         /* ===== 真手账式视图 ===== */
+        let scrapPhotoCache = {}; // 按日记ID缓存照片数组，供查看器使用
+
+        function initScrapSelectors() {
+            const now = new Date();
+            const yearSel = document.getElementById('scrap-year-sel');
+            const monthSel = document.getElementById('scrap-month-sel');
+            // 年份: 从最早日记到明年
+            let minYear = now.getFullYear();
+            diaries.forEach(d => { const dy = new Date(d.timestamp).getFullYear(); if (dy < minYear) minYear = dy; });
+            let yHtml = '';
+            for (let y = now.getFullYear() + 1; y >= minYear; y--) {
+                yHtml += `<option value="${y}">${y}年</option>`;
+            }
+            yearSel.innerHTML = yHtml;
+            let mHtml = '';
+            for (let mo = 1; mo <= 12; mo++) {
+                mHtml += `<option value="${mo}">${mo}月</option>`;
+            }
+            monthSel.innerHTML = mHtml;
+        }
+
         function renderScrapbook() {
             const y = scrapDisplayDate.getFullYear();
             const m = scrapDisplayDate.getMonth();
-            document.getElementById('scrap-month-label').textContent = `${y}年${m+1}月`;
+
+            // 更新下拉选择器
+            initScrapSelectors();
+            document.getElementById('scrap-year-sel').value = y;
+            document.getElementById('scrap-month-sel').value = m + 1;
 
             const monthDiaries = diaries.filter(d => {
                 const dd = new Date(d.timestamp);
@@ -2107,13 +2133,15 @@
                 const weekday = weekdayMap[dateObj.getDay()];
                 const monthStr = `${m+1}月`;
                 const timeStr = dateObj.toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-                const photoList = d.photos || (d.photo ? [d.photo] : []);
+                const photoList = (d.photos || (d.photo ? [d.photo] : [])).filter(p => p && p.length > 50); // 过滤掉空值(有效data-URL至少50字符)
                 const moodEmoji = d.mood ? d.mood.split(' ')[0] : '';
                 const weatherEmoji = d.weather ? d.weather.split(' ')[0] : '';
                 const actEmoji = d.activity ? d.activity.split(' ')[0] : '';
 
-                // 拍立得照片 (最多展示5张) — 无照片则不渲染
+                // 拍立得照片 (最多展示5张) — 无有效照片则完全不渲染照片区域
                 const displayPhotos = photoList.slice(0, 5);
+                // 缓存照片供查看器使用
+                if (displayPhotos.length > 0) scrapPhotoCache[d.id] = displayPhotos;
                 let polaroidsHtml = '';
                 if (displayPhotos.length > 0) {
                     polaroidsHtml = '<div class="jp-polaroids">' + displayPhotos.map((p, i) => {
@@ -2121,7 +2149,7 @@
                         if (displayPhotos.length === 1) cls += ' jp-wide';
                         else if (i === 0 && displayPhotos.length >= 3) cls += ' jp-wide';
                         else if (i === 4) cls += ' jp-tall';
-                        return `<div class="${cls}" onclick="openPhotoViewer(${JSON.stringify(displayPhotos).replace(/"/g,'&quot;')}, ${i})"><img src="${p}" alt="photo"></div>`;
+                        return `<div class="${cls}" onclick="openPhotoViewer('${d.id}', ${i})"><img src="${p}" alt="photo"></div>`;
                     }).join('') + '</div>';
                 }
 
@@ -2194,8 +2222,10 @@
 
         /* 图片放大查看器 */
         let jpViewerState = { photos: [], idx: 0 };
-        function openPhotoViewer(photos, idx) {
+        function openPhotoViewer(diaryId, idx) {
             event.stopPropagation();
+            const photos = scrapPhotoCache[diaryId] || [];
+            if (photos.length === 0) return;
             jpViewerState = { photos, idx: idx || 0 };
             renderPhotoViewer();
         }
@@ -2271,6 +2301,12 @@
         }
         function scrapGoToday() {
             scrapDisplayDate = new Date();
+            renderScrapbook();
+        }
+        function scrapJumpToMonth() {
+            const y = parseInt(document.getElementById('scrap-year-sel').value);
+            const m = parseInt(document.getElementById('scrap-month-sel').value) - 1;
+            scrapDisplayDate = new Date(y, m, 1);
             renderScrapbook();
         }
 

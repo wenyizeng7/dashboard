@@ -20,6 +20,18 @@
   @keyframes fade { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
   .fade-in { animation: fade .35s ease; }
   .toast { animation: fade .3s ease; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-dow { text-align: center; font-size: 10px; font-weight: 700; color: #cbd5e1; padding-bottom: 4px; }
+  .cal-cell { min-height: 64px; border-radius: 10px; background: #f8fafc; padding: 4px 3px; position: relative; cursor: pointer; transition: transform .1s; }
+  .cal-cell:active { transform: scale(.97); }
+  .cal-cell.has { background: #fff1f2; }
+  .cal-cell.today { outline: 2px solid #f43f5e; outline-offset: -2px; }
+  .cal-daynum { font-size: 10px; font-weight: 700; color: #94a3b8; line-height: 1; }
+  .cal-cell.today .cal-daynum { color: #f43f5e; }
+  .cal-rev { margin-top: 2px; line-height: 1.15; padding-left: 3px; }
+  .cal-rev-name { display: block; font-size: 9px; font-weight: 700; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cal-rev-stars { font-size: 7px; letter-spacing: -1px; }
+  .cal-more { font-size: 8px; font-weight: 700; color: #f43f5e; margin-top: 1px; }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen pb-20">
@@ -42,6 +54,7 @@
   <button onclick="app.switchTab('list')" id="tab-list" class="flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent transition">📋 点评</button>
   <button onclick="app.switchTab('stats')" id="tab-stats" class="flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent transition">📊 统计</button>
   <button onclick="app.switchTab('categories')" id="tab-categories" class="flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent transition">🏷️ 分类</button>
+  <button onclick="app.switchTab('calendar')" id="tab-calendar" class="flex-1 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent transition">📅 日历</button>
 </nav>
 
 <main class="px-4 pt-4 max-w-3xl mx-auto">
@@ -97,6 +110,30 @@
     </div>
   </div>
 </section>
+
+<!-- ====== Calendar ====== -->
+<section id="view-calendar" class="view-section">
+  <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-3">
+    <div class="flex items-center justify-between mb-3">
+      <button onclick="app.calPrevMonth()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><i class="fas fa-chevron-left text-xs"></i></button>
+      <button onclick="app.calGoToday()" id="cal-month-label" class="text-sm font-black text-slate-700">—</button>
+      <button onclick="app.calNextMonth()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><i class="fas fa-chevron-right text-xs"></i></button>
+    </div>
+    <div id="cal-grid"></div>
+  </div>
+  <p class="text-[11px] text-slate-400 text-center px-4">点有记录的日期，查看当天「名称 + 评分」</p>
+</section>
+
+<!-- Calendar Day Detail Modal -->
+<div id="cal-day-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onclick="if(event.target===this) app.closeCalDay()">
+  <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 max-h-[85vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-3">
+      <h2 id="cal-day-title" class="text-base font-black text-slate-800">📅</h2>
+      <button onclick="app.closeCalDay()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="cal-day-list" class="space-y-2"></div>
+  </div>
+</div>
 
 </main>
 
@@ -235,6 +272,7 @@ let editId = null;
 let currentRating = 0;
 let currentPhoto = null;
 let currentTab = 'list';
+let calMonth = null;
 
 const STORAGE_KEY = 'reviews_pro_state';
 
@@ -244,7 +282,7 @@ const app = {
     this.renderAll();
     this.switchTab('list');
     window.addEventListener('message', (e) => {
-      if (e.data && (e.data.type === 'refresh-data' || e.data.type === 'pb-sync-update')) { this.loadState(); this.renderAll(); if (document.getElementById('view-list').classList.contains('active')) this.renderList(); }
+      if (e.data && (e.data.type === 'refresh-data' || e.data.type === 'pb-sync-update')) { this.loadState(); this.renderAll(); if (document.getElementById('view-list').classList.contains('active')) this.renderList(); if (document.getElementById('view-calendar').classList.contains('active')) this.renderCalendar(); }
     });
     this._lastStateStr = JSON.stringify(state);
     setInterval(() => {
@@ -252,6 +290,7 @@ const app = {
       if (raw && raw !== this._lastStateStr) {
         this.loadState(); this.renderAll();
         if (document.getElementById('view-list').classList.contains('active')) this.renderList();
+        if (document.getElementById('view-calendar').classList.contains('active')) this.renderCalendar();
       }
     }, 2000);
   },
@@ -287,9 +326,10 @@ const app = {
     if (tab === 'list') this.renderList();
     else if (tab === 'stats') this.renderStats();
     else if (tab === 'categories') this.renderCategories();
+    else if (tab === 'calendar') this.renderCalendar();
   },
 
-  renderAll() { this.renderSummary(); this.renderFilterTabs(); this.renderList(); this.renderStats(); this.renderCategories(); },
+  renderAll() { this.renderSummary(); this.renderFilterTabs(); this.renderList(); this.renderStats(); this.renderCategories(); this.renderCalendar(); },
 
   // ===== Summary =====
   renderSummary() {
@@ -808,6 +848,126 @@ const app = {
     t.textContent = msg;
     t.className = 'toast fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl text-xs font-bold ' + (type === 'err' ? 'bg-red-500 text-white' : 'bg-slate-800 text-white');
     setTimeout(() => { t.classList.add('hidden'); }, 2000);
+  },
+
+  // ===== Calendar =====
+  renderCalendar() {
+    const grid = document.getElementById('cal-grid');
+    if (!grid) return;
+    const now = new Date();
+    const year = calMonth != null ? Math.floor(calMonth / 100) : now.getFullYear();
+    const month = calMonth != null ? (calMonth % 100) - 1 : now.getMonth();
+    const label = document.getElementById('cal-month-label');
+    if (label) label.textContent = `${year}年${month + 1}月`;
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDow = firstDay.getDay(); // 0=Sun
+    const daysInMonth = lastDay.getDate();
+    const today = this.todayStr();
+
+    // Build a map of date -> reviews for fast lookup
+    const revMap = {};
+    state.reviews.forEach(r => {
+      if (r.date) {
+        if (!revMap[r.date]) revMap[r.date] = [];
+        revMap[r.date].push(r);
+      }
+    });
+
+    // Day-of-week headers
+    const dows = ['日', '一', '二', '三', '四', '五', '六'];
+    let html = '<div class="cal-grid">';
+    dows.forEach(d => { html += `<div class="cal-dow">${d}</div>`; });
+
+    // Empty cells before first day
+    for (let i = 0; i < startDow; i++) {
+      html += '<div class="cal-cell" style="background:transparent;cursor:default"></div>';
+    }
+
+    // Day cells
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const isToday = ds === today;
+      const reviews = revMap[ds] || [];
+      const hasReviews = reviews.length > 0;
+
+      let cls = 'cal-cell';
+      if (hasReviews) cls += ' has';
+      if (isToday) cls += ' today';
+
+      let cellHtml = `<div class="${cls}" onclick="app.openCalDay('${ds}')">`;
+      cellHtml += `<div class="cal-daynum">${d}</div>`;
+
+      if (hasReviews) {
+        // Show first review name + rating, then "+N" if more
+        const r0 = reviews[0];
+        const cat = state.categories.find(c => c.id === r0.categoryId) || { icon: '🍴' };
+        const stars = r0.rating ? '<span class="cal-rev-stars">' + this.renderStars(r0.rating) + '</span>' : '<span class="cal-rev-stars" style="color:#f59e0b">待点评</span>';
+        cellHtml += `<div class="cal-rev"><span class="cal-rev-name">${cat.icon} ${this.escape(r0.name)}</span>${stars}</div>`;
+        if (reviews.length > 1) {
+          cellHtml += `<div class="cal-more">+${reviews.length - 1}</div>`;
+        }
+      }
+
+      cellHtml += '</div>';
+      html += cellHtml;
+    }
+
+    html += '</div>';
+    grid.innerHTML = html;
+  },
+
+  calPrevMonth() {
+    const year = calMonth != null ? Math.floor(calMonth / 100) : new Date().getFullYear();
+    const month = calMonth != null ? (calMonth % 100) - 1 : new Date().getMonth();
+    const d = new Date(year, month - 1, 1);
+    calMonth = d.getFullYear() * 100 + (d.getMonth() + 1);
+    this.renderCalendar();
+  },
+
+  calNextMonth() {
+    const year = calMonth != null ? Math.floor(calMonth / 100) : new Date().getFullYear();
+    const month = calMonth != null ? (calMonth % 100) - 1 : new Date().getMonth();
+    const d = new Date(year, month + 1, 1);
+    calMonth = d.getFullYear() * 100 + (d.getMonth() + 1);
+    this.renderCalendar();
+  },
+
+  calGoToday() {
+    calMonth = null;
+    this.renderCalendar();
+  },
+
+  openCalDay(ds) {
+    const reviews = state.reviews.filter(r => r.date === ds);
+    document.getElementById('cal-day-title').textContent = `📅 ${ds}`;
+    const list = document.getElementById('cal-day-list');
+    if (reviews.length === 0) {
+      list.innerHTML = '<p class="text-sm text-slate-400 text-center py-8">当天没有点评</p>';
+    } else {
+      list.innerHTML = reviews.map(r => {
+        const cat = state.categories.find(c => c.id === r.categoryId) || { icon: '🍴', color: '#9ca3af' };
+        const stars = r.rating ? `<span class="text-amber-400 text-xs">${this.renderStars(r.rating)}</span>` : '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-500 font-bold">待点评</span>';
+        return `
+          <div class="flex items-center gap-2 p-3 rounded-xl bg-white border border-slate-100">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0" style="background:${cat.color}15">${cat.icon}</div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-bold text-slate-800 truncate">${this.escape(r.name)}</p>
+              <p class="text-[10px] text-slate-400 truncate">${this.escape(r.place || '')}</p>
+            </div>
+            ${stars}
+          </div>
+        `;
+      }).join('');
+    }
+    document.getElementById('cal-day-modal').classList.remove('hidden');
+    document.getElementById('cal-day-modal').classList.add('flex');
+  },
+
+  closeCalDay() {
+    document.getElementById('cal-day-modal').classList.add('hidden');
+    document.getElementById('cal-day-modal').classList.remove('flex');
   }
 };
 

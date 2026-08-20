@@ -216,40 +216,46 @@
         .journal-page:hover .jp-save-btn { opacity: 1; }
 
         /* 图片放大查看弹窗 */
-        .jp-viewer-overlay {
+        /* 手账卡片全屏放大查看器 */
+        .jp-fullscreen-overlay {
             position: fixed; inset: 0; z-index: 9999;
-            background: rgba(0,0,0,0.88);
-            display: flex; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.85);
+            display: flex; align-items: flex-start; justify-content: center;
+            overflow-y: auto; padding: 20px;
             animation: jp-fade-in 0.2s ease;
         }
-        .jp-viewer-overlay img {
-            max-width: 90vw; max-height: 85vh; border-radius: 8px;
+        .jp-fullscreen-wrapper {
+            position: relative;
+            max-width: 600px; width: 100%;
+            margin: auto;
+        }
+        .jp-fullscreen-overlay #jp-fullscreen-card {
+            width: 100%;
             box-shadow: 0 8px 40px rgba(0,0,0,0.4);
         }
-        .jp-viewer-close {
-            position: absolute; top: 16px; right: 20px;
+        /* 放大时照片尺寸也放大 */
+        .jp-fullscreen-overlay .jp-polaroid img {
+            width: 200px; height: 200px;
+        }
+        .jp-fullscreen-overlay .jp-polaroid.jp-wide img { width: 280px; height: 210px; }
+        .jp-fullscreen-overlay .jp-polaroid.jp-tall img { width: 170px; height: 230px; }
+        .jp-fullscreen-overlay .jp-date-big { font-size: 52px; }
+        .jp-fullscreen-overlay .jp-body { font-size: 15px; line-height: 2.1; }
+        .jp-fullscreen-overlay .jp-title { font-size: 20px; }
+
+        .jp-fullscreen-toolbar {
+            position: sticky; top: 0; z-index: 10;
+            display: flex; gap: 8px; justify-content: flex-end;
+            margin-bottom: 8px; padding: 4px;
+        }
+        .jp-fs-btn {
             width: 40px; height: 40px; border-radius: 50%;
-            background: rgba(255,255,255,0.15); border: none;
-            color: #fff; font-size: 24px; cursor: pointer;
+            background: rgba(255,255,255,0.2); border: none;
+            color: #fff; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             transition: background 0.2s;
         }
-        .jp-viewer-close:hover { background: rgba(255,255,255,0.3); }
-        .jp-viewer-nav {
-            position: absolute; top: 50%; transform: translateY(-50%);
-            width: 44px; height: 44px; border-radius: 50%;
-            background: rgba(255,255,255,0.15); border: none;
-            color: #fff; font-size: 22px; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            transition: background 0.2s;
-        }
-        .jp-viewer-nav:hover { background: rgba(255,255,255,0.3); }
-        .jp-viewer-prev { left: 20px; }
-        .jp-viewer-next { right: 20px; }
-        .jp-viewer-counter {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            color: rgba(255,255,255,0.7); font-size: 13px; font-family: sans-serif;
-        }
+        .jp-fs-btn:hover { background: rgba(255,255,255,0.4); }
         @keyframes jp-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
         /* 月度封面 */
@@ -2067,7 +2073,7 @@
         }
 
         /* ===== 真手账式视图 ===== */
-        let scrapPhotoCache = {}; // 按日记ID缓存照片数组，供查看器使用
+        let scrapPhotoCache = {}; // legacy, kept for compatibility
 
         function initScrapSelectors() {
             const now = new Date();
@@ -2145,6 +2151,7 @@
                 const displayPhotos = photoList.slice(0, 5);
                 // 缓存照片供查看器使用
                 if (displayPhotos.length > 0) scrapPhotoCache[d.id] = displayPhotos;
+                else delete scrapPhotoCache[d.id];
                 let polaroidsHtml = '';
                 if (displayPhotos.length > 0) {
                     polaroidsHtml = '<div class="jp-polaroids">' + displayPhotos.map((p, i) => {
@@ -2152,7 +2159,7 @@
                         if (displayPhotos.length === 1) cls += ' jp-wide';
                         else if (i === 0 && displayPhotos.length >= 3) cls += ' jp-wide';
                         else if (i === 4) cls += ' jp-tall';
-                        return `<div class="${cls}" onclick="event.stopPropagation(); openPhotoViewer('${d.id}', ${i})"><img src="${p}" alt="photo"></div>`;
+                        return `<div class="${cls}"><img src="${p}" alt="photo"></div>`;
                     }).join('') + '</div>';
                 }
 
@@ -2171,15 +2178,15 @@
                 const divider = dividers[dayNum % dividers.length];
 
                 // 布局: 有照片时照片在前, 无照片时标题/正文直接跟header
-                // 注意: 卡片整体不绑定onclick — 点击照片放大, 点击其他区域(标题/正文)才打开编辑器
+                // 点击卡片任意位置 → 放大查看完整手账页面
                 return `
-                    <div class="journal-page" id="jp-${d.id}">
+                    <div class="journal-page" id="jp-${d.id}" onclick="openJournalFull('${d.id}')" style="cursor:zoom-in">
                         <button class="jp-save-btn" onclick="event.stopPropagation(); saveJournalCard('${d.id}')" title="保存为图片">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         </button>
                         <div class="journal-holes"><span></span><span></span><span></span><span></span><span></span></div>
                         <div class="journal-inner">
-                            <div class="jp-header" onclick="openDiary('${d.id}'); switchSubView('list');" style="cursor:pointer">
+                            <div class="jp-header">
                                 <div style="display:flex;align-items:flex-end;gap:8px">
                                     <span class="jp-date-big">${dayNum}</span>
                                     <div class="jp-date-meta">
@@ -2190,10 +2197,10 @@
                                 <div class="jp-emojis">${moodEmoji}${weatherEmoji}${actEmoji}</div>
                             </div>
                             ${polaroidsHtml}
-                            ${d.title ? `<div class="jp-title" onclick="openDiary('${d.id}'); switchSubView('list');" style="cursor:pointer">${d.title}</div>` : ''}
-                            ${content ? `<div class="jp-body" onclick="openDiary('${d.id}'); switchSubView('list');" style="cursor:pointer">${content}</div>` : ''}
+                            ${d.title ? `<div class="jp-title">${d.title}</div>` : ''}
+                            ${content ? `<div class="jp-body">${content}</div>` : ''}
                             <div class="jp-divider">${divider}</div>
-                            <div class="jp-footer" onclick="openDiary('${d.id}'); switchSubView('list');" style="cursor:pointer">
+                            <div class="jp-footer">
                                 ${tagsHtml}
                                 ${d.location ? `<span class="jp-location">📍 ${d.location.split(' ')[0]}</span>` : ''}
                                 <span class="jp-time">${timeStr}</span>
@@ -2223,52 +2230,80 @@
             }
         }
 
-        /* 图片放大查看器 */
-        let jpViewerState = { photos: [], idx: 0 };
-        function openPhotoViewer(diaryId, idx) {
-            const photos = scrapPhotoCache[diaryId] || [];
-            if (photos.length === 0) return;
-            jpViewerState = { photos, idx: idx || 0 };
-            renderPhotoViewer();
-        }
-        function renderPhotoViewer() {
-            // 移除旧的
-            const old = document.getElementById('jp-viewer');
+        /* 手账卡片放大查看器 — 点击卡片任意位置弹出完整手账页面 */
+        function openJournalFull(id) {
+            const card = document.getElementById('jp-' + id);
+            if (!card) return;
+
+            // 移除旧弹窗
+            const old = document.getElementById('jp-fullscreen');
             if (old) old.remove();
 
-            const { photos, idx } = jpViewerState;
-            const overlay = document.createElement('div');
-            overlay.id = 'jp-viewer';
-            overlay.className = 'jp-viewer-overlay';
-            overlay.onclick = (e) => { if (e.target === overlay) closePhotoViewer(); };
+            // 克隆卡片
+            const clone = card.cloneNode(true);
+            clone.id = 'jp-fullscreen-card';
+            clone.style.margin = '0';
+            clone.style.cursor = 'default';
+            // 隐藏克隆中的保存按钮
+            const saveBtn = clone.querySelector('.jp-save-btn');
+            if (saveBtn) saveBtn.style.display = 'none';
 
-            let html = `<button class="jp-viewer-close" onclick="closePhotoViewer()">&times;</button>`;
-            if (photos.length > 1) {
-                html += `<button class="jp-viewer-nav jp-viewer-prev" onclick="jpViewerNav(-1)">&#8249;</button>`;
-                html += `<button class="jp-viewer-nav jp-viewer-next" onclick="jpViewerNav(1)">&#8250;</button>`;
-                html += `<div class="jp-viewer-counter">${idx + 1} / ${photos.length}</div>`;
-            }
-            html += `<img src="${photos[idx]}" alt="photo">`;
-            overlay.innerHTML = html;
+            const overlay = document.createElement('div');
+            overlay.id = 'jp-fullscreen';
+            overlay.className = 'jp-fullscreen-overlay';
+            overlay.onclick = (e) => { if (e.target === overlay) closeJournalFull(); };
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'jp-fullscreen-wrapper';
+            wrapper.onclick = (e) => e.stopPropagation();
+
+            // 顶部操作栏
+            const toolbar = document.createElement('div');
+            toolbar.className = 'jp-fullscreen-toolbar';
+            toolbar.innerHTML = `
+                <button class="jp-fs-btn" onclick="closeJournalFull()" title="关闭">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+                <button class="jp-fs-btn" onclick="saveJournalCardFullscreen('${id}')" title="保存为图片">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </button>
+                <button class="jp-fs-btn" onclick="editFromFullscreen('${id}')" title="编辑此日记">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+            `;
+
+            wrapper.appendChild(toolbar);
+            wrapper.appendChild(clone);
+            overlay.appendChild(wrapper);
             document.body.appendChild(overlay);
 
-            // 键盘导航
-            document.addEventListener('keydown', jpViewerKeyHandler);
+            document.addEventListener('keydown', journalFullKeyHandler);
         }
-        function jpViewerNav(dir) {
-            const n = jpViewerState.photos.length;
-            jpViewerState.idx = (jpViewerState.idx + dir + n) % n;
-            renderPhotoViewer();
+        function journalFullKeyHandler(e) {
+            if (e.key === 'Escape') closeJournalFull();
         }
-        function jpViewerKeyHandler(e) {
-            if (e.key === 'Escape') closePhotoViewer();
-            else if (e.key === 'ArrowLeft') jpViewerNav(-1);
-            else if (e.key === 'ArrowRight') jpViewerNav(1);
-        }
-        function closePhotoViewer() {
-            const v = document.getElementById('jp-viewer');
+        function closeJournalFull() {
+            const v = document.getElementById('jp-fullscreen');
             if (v) v.remove();
-            document.removeEventListener('keydown', jpViewerKeyHandler);
+            document.removeEventListener('keydown', journalFullKeyHandler);
+        }
+        function editFromFullscreen(id) {
+            closeJournalFull();
+            openDiary(id);
+            switchSubView('list');
+        }
+        function saveJournalCardFullscreen(id) {
+            const card = document.getElementById('jp-fullscreen-card');
+            if (!card) return;
+            if (typeof html2canvas === 'undefined') {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                s.onload = () => doSaveCard(card, id);
+                s.onerror = () => alert('图片库加载失败，请检查网络');
+                document.head.appendChild(s);
+            } else {
+                doSaveCard(card, id);
+            }
         }
         function doSaveCard(card, id) {
             // 临时隐藏保存按钮

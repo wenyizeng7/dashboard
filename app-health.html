@@ -1574,6 +1574,8 @@ const app = {
       }
     }
 
+    var avgCups = totalDays>0 ? (totalCount/totalDays).toFixed(1) : '0';
+
     var html='<div class="card bg-white rounded-2xl p-5 mb-4 shadow-sm border border-slate-100">'+
       '<div class="flex items-center justify-between mb-3">'+
       '<button onclick="app.drinkCalPrev()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><i class="fas fa-chevron-left text-xs"></i></button>'+
@@ -1585,7 +1587,7 @@ const app = {
     // Stats bar
     html+='<div class="flex items-center justify-around bg-rose-50 rounded-xl py-2.5 mb-3">'+
       '<div class="text-center"><div class="text-lg font-black text-rose-500">'+totalCount+'</div><div class="text-[10px] text-slate-400">杯数</div></div>'+
-      '<div class="text-center"><div class="text-lg font-black text-rose-500">'+totalCal+'</div><div class="text-[10px] text-slate-400">总卡路里</div></div>'+
+      '<div class="text-center"><div class="text-lg font-black text-rose-500">'+avgCups+'</div><div class="text-[10px] text-slate-400">日均杯数</div></div>'+
       '<div class="text-center"><div class="text-lg font-black text-rose-500">'+totalDays+'</div><div class="text-[10px] text-slate-400">饮用天数</div></div>'+
       '</div>';
 
@@ -1618,7 +1620,10 @@ const app = {
         } else {
           html+='<span class="text-xl mt-0.5">🧋</span>';
         }
-        html+='<span class="text-[10px] font-bold text-rose-500 mt-0.5">'+dd.cal+'cal</span>';
+        var nm=(dd.items[0]&&dd.items[0].name)?dd.items[0].name:'饮品';
+        if(nm.length>6) nm=nm.slice(0,6)+'…';
+        var extra=dd.items.length>1?' +'+(dd.items.length-1):'';
+        html+='<span class="text-[9px] font-bold text-rose-500 mt-0.5 text-center leading-tight">'+nm+extra+'</span>';
       }
       html+='</div>';
     }
@@ -1661,13 +1666,13 @@ const app = {
     var totalCal=drinks.reduce(function(s,i){return s+(i.cal||0);},0);
     var html='<div class="bg-rose-50 rounded-xl p-3">'+
       '<div class="flex items-center justify-between mb-2"><span class="text-xs font-bold text-slate-600">'+date+'</span>'+
-      '<span class="text-sm font-black text-rose-500">'+totalCal+' kcal</span></div>'+
+      '<span class="text-sm font-black text-rose-500">'+drinks.length+' 杯</span></div>'+
       '<div class="space-y-1.5">';
     drinks.forEach(function(item){
       html+='<div class="flex items-center gap-2 bg-white rounded-lg p-1.5">'+
         (item.img?'<img src="'+item.img+'" class="w-10 h-10 rounded-lg object-cover">':'<div class="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center text-lg">🧋</div>')+
         '<div class="flex-1"><div class="text-xs font-semibold text-slate-700">'+item.name+'</div>'+
-        '<div class="text-[10px] text-slate-400">'+(item.gram?item.gram+'g · ':'')+(item.cal||0)+' kcal</div></div></div>';
+        '<div class="text-[10px] text-slate-400">'+(item.gram?item.gram+'g':'')+'</div></div></div>';
     });
     html+='</div></div>';
     detail.innerHTML=html;
